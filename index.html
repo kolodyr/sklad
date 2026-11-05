@@ -1,0 +1,1733 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Мій склад</title>
+<meta name="description" content="Приймання й відвантаження посилок">
+<meta name="theme-color" content="#0d131a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Мій склад">
+<meta name="format-detection" content="telephone=no">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<style>
+/* Layout: одна колонка, липка шапка, нижня панель з 3 вкладок: Склад · Прийом · Історія. */
+:root {
+  --bg: #0d131a;
+  --surface: #141c25;
+  --surface-2: #1b2530;
+  --line: #243140;
+  --line-2: #31414f;
+  --fg: #e6ecf2;
+  --muted: #8f9cab;
+  --faint: #5f6d7c;
+  --accent: #3cc4b6;
+  --accent-ink: #05211d;
+  --danger: #f2786d;
+  --warn: #f0b44a;
+  --in: #6fcf97;
+  --out: #6aa8f7;
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace;
+  --r: 16px;
+  --tab-h: 60px;
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --gutter-l: max(16px, env(safe-area-inset-left, 0px));
+  --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+  color-scheme: dark;
+}
+:root.theme-light {
+  --bg: #f2f4f6;
+  --surface: #ffffff;
+  --surface-2: #e9edf1;
+  --line: #dbe1e7;
+  --line-2: #c4ced8;
+  --fg: #142029;
+  --muted: #586675;
+  --faint: #8995a2;
+  --accent: #0b8b80;
+  --accent-ink: #ffffff;
+  --danger: #c7463a;
+  --warn: #a86e05;
+  --in: #23874d;
+  --out: #2c66c4;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.4 var(--font-ui);
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: var(--sat); z-index: 30; background: var(--bg); }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; text-align: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ic svg, svg.ic { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ic { display: inline-flex; }
+[hidden] { display: none !important; }
+
+/* ---------- шапка ---------- */
+.topbar {
+  position: sticky; top: var(--sat); z-index: 20;
+  display: flex; align-items: center; gap: 6px;
+  min-height: 54px; padding-block: 6px;
+  padding-left: var(--gutter-l); padding-right: var(--gutter-r);
+  background: var(--bg);
+  border-bottom: 1px solid transparent;
+}
+.topbar > .icon-btn:last-child { margin-right: -11px; }
+.topbar.scrolled { border-bottom-color: var(--line); }
+.topbar h1 {
+  flex: 1; min-width: 0; margin: 0;
+  font: 700 22px/1.15 var(--font-display); letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.topbar .back { margin-left: -8px; }
+.icon-btn {
+  position: relative; width: 44px; height: 44px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--fg);
+}
+.icon-btn:active { background: var(--surface-2); }
+
+/* ---------- основна область ---------- */
+main {
+  padding-left: var(--gutter-l); padding-right: var(--gutter-r);
+  padding-block: 4px calc(var(--tab-h) + var(--sab) + 28px);
+  max-width: 760px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 14px;
+}
+main.has-bar { padding-bottom: calc(var(--tab-h) + var(--sab) + 104px); }
+
+/* ---------- нижня панель ---------- */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  padding-left: var(--gutter-l); padding-right: var(--gutter-r);
+  padding-bottom: var(--sab);
+  background: var(--surface); border-top: 1px solid var(--line);
+}
+.tab {
+  height: var(--tab-h); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.01em; position: relative;
+}
+.tab.on { color: var(--accent); }
+.tab .badge {
+  position: absolute; top: 6px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 9px; background: var(--accent); color: var(--accent-ink);
+  font: 700 11px/18px var(--font-ui); text-align: center;
+}
+
+/* ---------- базові елементи ---------- */
+.btn {
+  min-height: 46px; padding: 0 16px; border-radius: 13px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--surface-2); color: var(--fg); font-weight: 600; font-size: 15px;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.btn:active { filter: brightness(1.15); }
+.btn .ic svg { width: 19px; height: 19px; }
+.btn-primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn-danger { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--accent); }
+.btn-sm { min-height: 38px; padding: 0 12px; font-size: 14px; border-radius: 11px; }
+.btn-block { width: 100%; }
+.btn[disabled] { opacity: .45; pointer-events: none; }
+.row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.row-btns > .btn { flex: 1 1 0; min-width: 0; }
+
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > span, .label {
+  font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase;
+}
+.input, .textarea, .select {
+  width: 100%; min-height: 46px; padding: 11px 13px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line-2); color: var(--fg);
+  font-size: 16px; outline: none; -webkit-appearance: none; appearance: none;
+}
+.input:focus, .textarea:focus, .select:focus { border-color: var(--accent); }
+.textarea { min-height: 150px; resize: vertical; font-family: var(--font-mono); font-size: 15px; line-height: 1.45; }
+.select {
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 34px;
+}
+input[type="date"].input { min-height: 46px; display: block; padding-left: 10px; padding-right: 6px; font-variant-numeric: tabular-nums; }
+input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
+input[type="date"].input::-webkit-calendar-picker-indicator { margin-left: 0; padding: 0; opacity: .6; }
+.grid-2e { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+.search { position: relative; }
+.search .ic { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--faint); pointer-events: none; }
+.search .ic svg { width: 19px; height: 19px; }
+.search .input { padding-left: 40px; }
+
+.seg {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; padding: 3px;
+  background: var(--surface-2); border-radius: 13px;
+}
+.seg button { min-height: 38px; border-radius: 10px; font-size: 14px; font-weight: 600; color: var(--muted); text-align: center; padding: 0 6px; }
+.seg button.on { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  padding: 4px 9px; border-radius: 20px; font-size: 12.5px; font-weight: 650; white-space: nowrap;
+  color: var(--st, var(--muted));
+  background: var(--surface-2);
+  background: color-mix(in srgb, var(--st, var(--muted)) 15%, transparent);
+}
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; }
+.card h3, .sheet h3 { margin: 0 0 6px; font: 700 18px/1.25 var(--font-display); text-wrap: balance; }
+.card p, .sheet p { margin: 0 0 10px; color: var(--muted); font-size: 15px; }
+.card > :last-child { margin-bottom: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.hint { margin: -6px 0 0; color: var(--muted); font-size: 13px; }
+.sec-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.sec-title h2 { margin: 0; font: 700 17px/1.3 var(--font-display); }
+.empty { text-align: center; color: var(--muted); padding: 28px 12px; font-size: 15px; }
+.warn { border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.warn-text { color: var(--warn); }
+.danger-card { border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
+.banner { display: flex; align-items: center; gap: 12px; }
+.banner > div { flex: 1; min-width: 0; }
+.banner p { margin: 2px 0 0; }
+.linkrow {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  min-height: 52px; padding: 0 14px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line);
+  font-weight: 600;
+}
+.linkrow span:first-child { flex: 1; }
+.linkrow .chev { color: var(--faint); font-size: 22px; line-height: 1; }
+
+/* ---------- склад ---------- */
+.totals { display: flex; align-items: baseline; gap: 10px; }
+.totals b { font: 700 40px/1 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.totals span { color: var(--muted); font-size: 15px; }
+.gsec { display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 14px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); }
+.gsec-head { display: flex; align-items: center; gap: 8px; }
+.gsec-head h3 { flex: 1; min-width: 0; margin: 0; font: 700 19px/1.2 var(--font-display); overflow-wrap: anywhere; }
+.gsec-head h3 small { color: var(--muted); font: 500 14px var(--font-ui); margin-left: 6px; }
+.dhead {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  min-height: 34px; margin-top: 4px; color: var(--muted); font-size: 13.5px; font-weight: 650;
+}
+.dhead b { color: var(--fg); font: 700 15px var(--font-display); font-variant-numeric: tabular-nums; }
+.dhead .pick { color: var(--accent); font-size: 13px; }
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 7px; }
+.pc {
+  position: relative; min-height: 58px; padding: 6px 6px 7px; border-radius: 12px; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; text-align: center;
+  background: var(--surface-2); border: 1.5px solid var(--line-2);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+}
+.pc b { font: 700 20px/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
+.pc small { display: block; max-width: 100%; font-size: 11.5px; line-height: 1.25; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc.sel { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pc.sel small { color: inherit; opacity: .8; }
+.pc.prob::after { content: "!"; position: absolute; top: 3px; right: 6px; font: 800 13px var(--font-ui); color: var(--warn); }
+.pc.sel.prob::after { color: var(--accent-ink); }
+.pc.nonum b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* нижня панель дій над вкладками */
+.action-bar {
+  position: fixed; z-index: 24; left: 0; right: 0; bottom: calc(var(--tab-h) + var(--sab));
+  padding-block: 10px;
+  padding-left: var(--gutter-l); padding-right: var(--gutter-r);
+  background: var(--bg); border-top: 1px solid var(--line);
+  display: flex; align-items: center; gap: 10px;
+}
+.action-bar .summary { flex: 1; min-width: 0; font-size: 14px; color: var(--muted); line-height: 1.3; }
+.action-bar .summary b { color: var(--fg); font: 700 18px var(--font-display); font-variant-numeric: tabular-nums; }
+.action-bar .btn { min-height: 48px; }
+
+/* ---------- прийом ---------- */
+.iblock { display: flex; flex-direction: column; padding: 10px 0 2px; border-top: 1px solid var(--line); }
+.iblock:first-of-type { border-top: 0; padding-top: 0; }
+.iblock h4 { margin: 0 0 4px; font: 700 16px var(--font-display); display: flex; gap: 8px; align-items: baseline; }
+.iblock h4 span { color: var(--muted); font: 500 13px var(--font-ui); }
+.irow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 42px; padding: 4px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.iblock h4 + .irow { border-top: 0; }
+.irow .n { min-width: 34px; flex: none; font: 700 17px var(--font-display); font-variant-numeric: tabular-nums; }
+.irow .d { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.irow .flag { flex: none; font-size: 12.5px; font-weight: 650; padding: 4px 9px; border-radius: 20px; color: var(--faint); border: 1px dashed var(--line-2); }
+.irow.prob .flag { color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.irow.dup { opacity: .5; }
+.irow.dup .flag { border: 0; }
+.qhead { display: flex; align-items: center; gap: 8px; margin: -4px 0 -2px; }
+.qhead-main { flex: 1; min-width: 0; min-height: 40px; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qhead-main b { font: 700 17px var(--font-display); }
+.qedit { color: var(--accent); font-size: 13px; font-weight: 600; margin-left: 4px; }
+.qchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.qchip {
+  min-height: 50px; padding: 0 16px; border-radius: 14px; background: var(--surface); border: 1.5px solid var(--line-2);
+  font-weight: 650; font-size: 16px; text-align: center; touch-action: manipulation; -webkit-user-select: none; user-select: none;
+}
+.qchip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.qchip.add { border-style: dashed; color: var(--accent); }
+.qchip:active { filter: brightness(1.35); }
+.qchip.sm { min-height: 42px; padding: 0 13px; font-size: 15px; }
+.gsec.open { border-color: var(--accent); }
+.d-plus { width: 48px; min-height: 44px; padding: 0; }
+.d-plus .ic svg { width: 24px; height: 24px; stroke-width: 2.4; }
+.dchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dchip { min-height: 36px; padding: 0 10px; border-radius: 10px; background: var(--surface-2); border: 1.5px solid var(--line-2); font-size: 14px; }
+.dchip b { font: 700 15px var(--font-display); font-variant-numeric: tabular-nums; }
+.dchip.last { border-color: var(--accent); }
+.dchip.prob { border-color: var(--warn); }
+.dchip.bad { border-color: var(--danger); color: var(--danger); }
+.entry { display: grid; grid-template-columns: 86px minmax(0, 1fr) 46px; gap: 8px; }
+.entry .enum { font: 700 22px var(--font-display); text-align: center; padding-inline: 6px; }
+.eprob { width: 46px; height: 46px; border: 1px solid var(--line-2); font-size: 18px; }
+.eprob.on { color: var(--warn); border-color: var(--warn); background: color-mix(in srgb, var(--warn) 18%, transparent); }
+.check-row { display: flex; gap: 12px; align-items: flex-start; font-size: 15px; padding: 4px 0; }
+.check-row input { width: 22px; height: 22px; accent-color: var(--accent); margin: 1px 0 0; flex: none; }
+
+/* ---------- текст для начальника ---------- */
+.msgtext {
+  margin: 0; padding: 14px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line);
+  font: 14.5px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 460px; overflow: auto;
+  -webkit-user-select: text; user-select: text;
+}
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 7px; }
+.thumbs div { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+.thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumbs button { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 12px; background: rgba(0,0,0,.6); color: #fff; display: flex; align-items: center; justify-content: center; }
+.thumbs button svg { width: 14px; height: 14px; stroke-width: 2.6; }
+
+/* ---------- історія ---------- */
+.mhead { display: flex; flex-direction: column; gap: 6px; }
+.mhead h2 { margin: 0; font: 700 23px/1.2 var(--font-display); overflow-wrap: anywhere; }
+.mmeta { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.mlist { display: flex; flex-direction: column; gap: 10px; }
+.mcard { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 13px 14px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); }
+.mcard:active { background: var(--surface-2); }
+.mcard-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mdate { font: 700 15px var(--font-display); color: var(--muted); font-variant-numeric: tabular-nums; }
+.mtitle { font: 650 16px/1.35 var(--font-ui); overflow-wrap: anywhere; }
+.day-label { margin: 6px 0 -2px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* ---------- аркуші, тост ---------- */
+#sheet-root { position: fixed; inset: 0; z-index: 50; }
+.sheet-backdrop { position: absolute; inset: 0; background: rgba(4, 8, 12, .6); animation: fade .15s ease-out; }
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; max-height: calc(100% - var(--sat) - 24px); overflow: auto; overscroll-behavior: contain;
+  background: var(--surface); border-radius: 20px 20px 0 0; border-top: 1px solid var(--line-2);
+  padding-top: 8px; padding-bottom: calc(18px + var(--sab));
+  padding-left: var(--gutter-l); padding-right: var(--gutter-r);
+  display: flex; flex-direction: column; gap: 12px;
+  animation: up .2s ease-out;
+  max-width: 760px; margin: 0 auto;
+}
+.sheet-grip { width: 38px; height: 5px; border-radius: 3px; background: var(--line-2); margin: 0 auto 4px; flex: none; }
+.sheet h3 { margin: 0; }
+.sheet .opt-list { display: flex; flex-direction: column; gap: 8px; }
+.sheet .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 15px; margin: 0; }
+.sheet .kv dt { color: var(--muted); }
+.sheet .kv dd { margin: 0; overflow-wrap: anywhere; }
+.list-text { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+
+.toast {
+  position: fixed; z-index: 60; left: var(--gutter-l); right: var(--gutter-r);
+  bottom: calc(var(--tab-h) + var(--sab) + 12px);
+  max-width: 560px; margin: 0 auto;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 14px;
+  background: var(--fg); color: var(--bg); font-size: 15px; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  transform: translateY(20px); opacity: 0; pointer-events: none; transition: transform .2s, opacity .2s;
+}
+.toast.show { transform: none; opacity: 1; pointer-events: auto; }
+.toast.err { background: var(--danger); color: #fff; }
+.toast span { flex: 1; min-width: 0; }
+.toast button { color: var(--accent); font-weight: 700; padding: 6px 4px; }
+:root.theme-light .toast button { color: #7fe3d7; }
+.toast.err button { color: #fff; text-decoration: underline; }
+body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
+
+@keyframes up { from { transform: translateY(40px); } to { transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+@media (pointer: coarse) {
+  body.kb .tabbar, body.kb .action-bar { display: none; }
+  body.kb main { padding-bottom: 40px; }
+}
+@media (min-width: 560px) { .pgrid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); } }
+
+@media (display-mode: standalone) { :root.theme-light body::before { background: #142029; } }
+
+:root { padding-top: env(safe-area-inset-top, 0px); }
+</style>
+</head>
+<body>
+<header class="topbar" id="topbar"></header>
+<main id="view"><div class="empty">Завантаження…</div></main>
+<nav class="tabbar" id="tabbar" aria-label="Розділи"></nav>
+<div id="sheet-root" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><div class="empty">Для роботи «Мого складу» потрібен JavaScript.</div></noscript>
+<script>window.__MS_VERSION__ = "2026.11.05-2100";</script>
+<script>
+/* «Мій склад» — ядро обліку. Чиста логіка без DOM.
+   Посилка = позиція (група) + дата пакування + номер, як на ярлику «Манчестер 4.11/1 вода».
+   «Манчестер 4.11/1» і «Манчестер 3.11/1» — різні посилки. */
+(function (root) {
+  'use strict';
+
+  /* ---------- утиліти ---------- */
+  let _c = 0;
+  function uid(p) {
+    _c = (_c + 1) % 1679616;
+    return p + Date.now().toString(36) + _c.toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+  const z2 = n => String(n).padStart(2, '0');
+  function todayStr(d) { d = d || new Date(); return d.getFullYear() + '-' + z2(d.getMonth() + 1) + '-' + z2(d.getDate()); }
+  /** 2026-11-03 → «3.11» — як у списках для начальника */
+  function fmtDay(iso) { if (!iso) return ''; const p = iso.slice(0, 10).split('-'); return (+p[2]) + '.' + p[1]; }
+  function fmtDate(iso) { if (!iso) return ''; const p = iso.slice(0, 10).split('-'); return p[2] + '.' + p[1] + '.' + p[0]; }
+  function fmtQty(q) { const r = Math.round(q * 1000) / 1000; return Number.isInteger(r) ? String(r) : String(r).replace('.', ','); }
+  function norm(t) { return String(t || '').toLowerCase().replace(/ё/g, 'е').replace(/[’'`ʼ]/g, '').replace(/\s+/g, ' ').trim(); }
+  function clean(t) { return String(t || '').replace(/\s+/g, ' ').trim(); }
+  /** «манчестер» → «Манчестер» для назв позицій */
+  function cap(t) { t = clean(t); return t.charAt(0).toUpperCase() + t.slice(1); }
+  const collator = (typeof Intl !== 'undefined') ? new Intl.Collator('uk', { numeric: true, sensitivity: 'base' }) : null;
+  const cmpStr = (a, b) => collator ? collator.compare(a || '', b || '') : String(a || '').localeCompare(String(b || ''));
+  const cmpItem = (a, b) => (a.date || '').localeCompare(b.date || '') || (a.number == null) - (b.number == null) || (a.number || 0) - (b.number || 0);
+
+  /* ---------- стан ---------- */
+  function emptyState() {
+    return { app: 'miy-sklad', version: 2, groups: [], items: [], events: [], settings: { lastBackupAt: null, theme: 'dark' } };
+  }
+  function fixItem(it, now) {
+    return {
+      id: it.id, groupId: it.groupId,
+      number: Number.isInteger(it.number) ? it.number : null,
+      desc: clean(it.desc), date: String(it.date || todayStr()).slice(0, 10),
+      state: it.state === 'departed' ? 'departed' : 'stock',
+      problem: !!it.problem, note: clean(it.note),
+      arrivalId: it.arrivalId || null, shipmentId: it.shipmentId || null,
+      createdAt: it.createdAt || now, updatedAt: it.updatedAt || now
+    };
+  }
+  /** Приводить будь-яку збережену версію (зокрема v1 з місіями) до поточної моделі */
+  function migrate(s) {
+    const out = emptyState();
+    if (!s || typeof s !== 'object') return out;
+    const now = new Date().toISOString();
+    const st = s.settings || {};
+    if (st.theme) out.settings.theme = st.theme;
+    if (st.lastBackupAt) out.settings.lastBackupAt = st.lastBackupAt;
+    out.groups = (Array.isArray(s.groups) ? s.groups : []).filter(g => g && g.id && clean(g.name)).map(g => ({ id: g.id, name: clean(g.name) }));
+    const items = Array.isArray(s.items) ? s.items : [];
+    if (s.version === 2) {
+      out.items = items.filter(it => it && it.id && it.groupId).map(it => fixItem(it, now));
+      out.events = (Array.isArray(s.events) ? s.events : []).filter(e => e && e.id && (e.kind === 'in' || e.kind === 'out'))
+        .map(e => ({ id: e.id, kind: e.kind, date: String(e.date || '').slice(0, 10) || todayStr(), ts: e.ts || now, count: e.count || 0, title: clean(e.title) }));
+      if (s.legacy) out.legacy = s.legacy;
+    } else {
+      // v1: товари з кількістю стають позиціями без номера з описом «назва к-сть од.»
+      out.items = items.filter(it => it && it.id && it.groupId).map(it => fixItem({
+        id: it.id, groupId: it.groupId, number: it.number,
+        desc: it.number != null ? (it.name || '') : [it.name, it.qty != null ? fmtQty(it.qty) + (it.unit ? ' ' + it.unit : '') : ''].filter(Boolean).join(' '),
+        date: it.date, state: it.state === 'departed' ? 'departed' : 'stock', note: it.notes,
+        createdAt: it.createdAt, updatedAt: it.updatedAt
+      }, now));
+      if ((s.missions && s.missions.length) || (s.movements && s.movements.length))
+        out.legacy = { missions: s.missions || [], missionItems: s.missionItems || [], movements: s.movements || [] };
+    }
+    if (s.savedAt) out.savedAt = s.savedAt;
+    return out;
+  }
+
+  /* ---------- пошук у стані ---------- */
+  function index(s) {
+    const groups = new Map(), items = new Map(), events = new Map();
+    for (const g of s.groups) groups.set(g.id, g);
+    for (const i of s.items) items.set(i.id, i);
+    for (const e of s.events) events.set(e.id, e);
+    return { s, groups, items, events };
+  }
+  function findGroup(s, name) { const n = norm(name); return s.groups.find(g => norm(g.name) === n) || null; }
+  function ensureGroup(s, name) {
+    let g = findGroup(s, name);
+    if (!g) { g = { id: uid('g'), name: cap(name) }; s.groups.push(g); }
+    return g;
+  }
+  function findParcel(s, groupId, date, number, exceptId) {
+    return s.items.find(i => i.id !== exceptId && i.groupId === groupId && i.date === date && i.number === number && number != null) || null;
+  }
+  /** Групи в порядку, в якому вони вперше приїхали (як у списках начальника) */
+  function groupOrder(s, ids) { const pos = new Map(s.groups.map((g, k) => [g.id, k])); return ids.slice().sort((a, b) => (pos.get(a) ?? 1e9) - (pos.get(b) ?? 1e9)); }
+  function groupName(ix, id) { const g = ix.groups.get(id); return g ? g.name : '?'; }
+  function itemLabel(ix, it) { return groupName(ix, it.groupId) + ' ' + (it.number != null ? fmtDay(it.date) + '/' + it.number : it.desc); }
+
+  /* ---------- розбір тексту прийому ---------- */
+  // ярлик посилки: «4.11.2026/1» або «4.11/1» — дата пакування / номер
+  const PACK = /(\d{1,2})\.(\d{1,2})(?:\.(\d{4}|\d{2}))?\s*\/\s*(\d{1,5})/;
+  const DATE_ONLY = /^(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{4}|\d{2}))?\s*р?\.?$/;
+  // заголовок документа: «5.11 РЗ -> Федекс»
+  const HEAD = /^(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{4}|\d{2}))?\s+(\D.*)$/;
+  // «3 - дрони», «3. дрони», «3) дрони», «3 дрони», «1-3 - вода» (діапазон з однаковим описом)
+  const PARCEL = /^(\d{1,5})(?:\s*[-–—]\s*(\d{1,5})(?=\s*[-–—.):]\s|\s*$))?(?:\s*[-–—.):]\s*|\s+|$)(.*)$/;
+
+  function parseNumList(t) {
+    const nums = [];
+    for (const tok of t.replace(/\s*[-–—]\s*/g, '-').split(/[,;\s]+/).filter(Boolean)) {
+      const m = tok.match(/^(\d+)(?:-(\d+))?$/);
+      if (!m) return null;
+      const a = +m[1], b = m[2] ? +m[2] : a;
+      if (b < a || b - a > 500) return null;
+      for (let k = a; k <= b; k++) nums.push(k);
+    }
+    return nums;
+  }
+  /** День і місяць без року → найближча дата відносно ref (28.12 у січні — це минулий рік) */
+  function mkDate(d, mo, y, ref) {
+    if (!(d >= 1 && d <= 31 && mo >= 1 && mo <= 12)) return null;
+    if (y != null && y !== '') { y = +y; if (y < 100) y += 2000; return y + '-' + z2(mo) + '-' + z2(d); }
+    const r = ref || todayStr(), ry = +r.slice(0, 4);
+    const iso = ry + '-' + z2(mo) + '-' + z2(d);
+    return iso > r && (mo - +r.slice(5, 7) + 12) % 12 > 1 ? (ry - 1) + iso.slice(4) : iso;
+  }
+  function packId(r) { return r.number == null ? '' : fmtDay(r.date) + '/' + r.number; }
+
+  /**
+   * Текст прийому → {header:{date,title}|null, blocks:[{name, rows:[{line, number, date, desc}]}]}.
+   * Рядок-посилка: «Манчестер 4.11/1 вода» або під групою «4.11/1 - вода» чи «1 - вода».
+   * Перший рядок «5.11 РЗ -> Федекс» — заголовок. Рядок лише з датою змінює дату для посилок без неї.
+   */
+  function parseArrival(text, defDate, st) {
+    const lines = String(text || '').replace(/\r/g, '').split('\n');
+    const ref = defDate || todayStr();
+    const blocks = [], warnings = [], bmap = new Map();
+    let header = null, date = ref, cur = null, first = true, prevBlank = true;
+    const block = name => {
+      const k = norm(name);
+      if (!bmap.has(k)) { const b = { name: cap(name), rows: [] }; bmap.set(k, b); blocks.push(b); }
+      return bmap.get(k);
+    };
+    const push = (i, number, desc, d) => {
+      if (!cur) { warnings.push('Рядок ' + (i + 1) + ': посилка без позиції — пропущено'); return; }
+      d = d || date;
+      // повтор номера не викидаємо: на ярликах буває однаковий номер з різних днів пакування
+      if (number != null && cur.rows.some(r => r.number === number && r.date === d)) warnings.push(cur.name + ' №' + number + ' записано двічі (рядок ' + (i + 1) + ') — перевірте ярлики');
+      desc = clean(desc).replace(/^[-–—:,.\s]+/, '');
+      cur.rows.push({ line: i, number, date: d, desc, problem: /фото/i.test(desc) });
+    };
+    lines.forEach((raw, i) => {
+      const t0 = clean(raw);
+      if (!t0) { prevBlank = true; return; }
+      const blank = prevBlank; prevBlank = false;
+      // «*Пегас*» — жирна назва позиції з месенджера
+      const bold = t0.match(/^[*_]+\s*([^*_]+?)\s*[*_]+:?$/);
+      if (bold && !/^\d/.test(bold[1])) { first = false; cur = block(bold[1]); return; }
+      const t = t0.replace(/^[•*·▪◦]\s*/, '').replace(/^[-–—]\s+/, '').replace(/^№\s*/, '');
+      const isFirst = first; first = false;
+      let m = t.match(DATE_ONLY);
+      if (m) {
+        const d = mkDate(+m[1], +m[2], m[3], ref);
+        if (d) { if (isFirst) header = { date: d, title: '' }; date = d; cur = null; return; }
+      }
+      if (isFirst && !PACK.test(t) && (m = t.match(HEAD))) {
+        const d = mkDate(+m[1], +m[2], m[3], ref);
+        if (d) { header = { date: d, title: clean(m[4]) }; date = d; return; }
+      }
+      if ((m = t.match(PACK))) {
+        const before = clean(t.slice(0, m.index).replace(/[-–—:,]+\s*$/, ''));
+        if (/\p{L}/u.test(before)) cur = block(before);
+        const d = mkDate(+m[1], +m[2], m[3], ref);
+        if (!d) { warnings.push('Рядок ' + (i + 1) + ': незрозуміла дата «' + m[0] + '»'); return; }
+        push(i, +m[4], t.slice(m.index + m[0].length), d);
+        return;
+      }
+      if (/^[\d\s,;–—-]+$/.test(t) && /\d/.test(t)) {
+        const nums = parseNumList(t);
+        if (nums) { nums.forEach(n => push(i, n, '')); return; }
+      }
+      m = t.match(PARCEL);
+      if (m && /\d/.test(t[0])) {
+        const a = +m[1], b = m[2] != null ? +m[2] : a;
+        if (b >= a && b - a <= 500) { for (let n = a; n <= b; n++) push(i, n, m[3]); return; }
+      }
+      // «Манчестер: 1 - вода» в одному рядку
+      m = t.match(/^([^:\d][^:]*):\s*(\d.*)$/);
+      if (m) {
+        cur = block(m[1]);
+        const p = m[2].match(PARCEL);
+        if (p) { const a = +p[1], b = p[2] != null ? +p[2] : a; for (let n = a; n <= b && n - a <= 500; n++) push(i, n, p[3]); }
+        return;
+      }
+      // рядок без номера: нова позиція (після порожнього рядка, з двокрапкою або відома назва) чи товар без номера («Бк - 4 цинка»)
+      const isGroup = !cur || blank || /:\s*$/.test(t) || (st && findGroup(st, t.replace(/[:\-–—]+\s*$/, '')));
+      if (isGroup) cur = block(t.replace(/[:\-–—]+\s*$/, ''));
+      else push(i, null, t);
+    });
+    for (const b of blocks) if (!b.rows.length) warnings.push('Позиція «' + b.name + '» без посилок');
+    return { header, blocks: blocks.filter(b => b.rows.length), warnings, total: blocks.reduce((a, b) => a + b.rows.length, 0) };
+  }
+  /** Позначає рядки, які вже записані раніше (та сама позиція, дата пакування, номер) */
+  function planArrival(s, parsed) {
+    let dup = 0, fresh = 0;
+    for (const b of parsed.blocks) {
+      const g = findGroup(s, b.name);
+      for (const r of b.rows) {
+        const ex = g ? findParcel(s, g.id, r.date, r.number) : null;
+        r.dup = ex ? ex.state : null;
+        if (ex) dup++; else fresh++;
+      }
+    }
+    return { dup, fresh };
+  }
+  /** Зберігає прийом. o.date / o.title — дата машини й маршрут для заголовка. */
+  function applyArrival(s, parsed, o) {
+    o = o || {};
+    planArrival(s, parsed);
+    const ts = new Date().toISOString();
+    const ev = { id: uid('in'), kind: 'in', date: o.date || todayStr(), title: clean(o.title), ts, count: 0 };
+    for (const b of parsed.blocks) {
+      for (const r of b.rows) {
+        if (r.dup && !o.allowDup) continue;
+        const g = ensureGroup(s, b.name);
+        s.items.push({
+          id: uid('i'), groupId: g.id, number: r.number, desc: clean(r.desc), date: r.date, state: 'stock',
+          problem: !!r.problem, note: '', arrivalId: ev.id, shipmentId: null, createdAt: ts, updatedAt: ts
+        });
+        ev.count++;
+      }
+    }
+    if (!ev.count) return { ok: false, err: 'Усі посилки вже записані раніше' };
+    s.events.push(ev);
+    return { ok: true, event: ev };
+  }
+
+  /* ---------- тексти для начальника ---------- */
+  /** «18 - паливо»; дата пакування додається, лише якщо відрізняється від дати підвозу: «3.11/12 - дрони» */
+  function parcelLine(r, headDate) {
+    const id = r.number == null ? '' : (headDate && r.date !== headDate ? packId(r) : String(r.number));
+    return [id, r.desc].filter(Boolean).join(' - ') + (r.problem ? ' ⚠' : '');
+  }
+  function arrivalHead(date, title) { const p = String(date || '').split('-'); return [date ? p[2] + '.' + p[1] : '', clean(title)].filter(Boolean).join(' '); }
+  /** «04.11 РЗ -> Федекс» + «*Пегас*\n1 - стяжки\n2 - батки…» — як пишуть у месенджері, номери по порядку */
+  function formatArrival(head, blocks, headDate) {
+    const parts = head ? [head] : [];
+    for (const b of blocks) if (b.rows.length) parts.push('*' + b.name + '*\n' + b.rows.slice().sort(cmpItem).map(r => parcelLine(r, headDate)).join('\n'));
+    return parts.join('\n\n');
+  }
+  function arrivalBlocks(ix, items) {
+    const by = new Map();
+    for (const it of items.slice().sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))) {
+      if (!by.has(it.groupId)) by.set(it.groupId, { name: groupName(ix, it.groupId), rows: [] });
+      by.get(it.groupId).rows.push(it);
+    }
+    return [...by.values()];
+  }
+  function arrivalText(s, evId) {
+    const ix = index(s), ev = ix.events.get(evId);
+    return formatArrival(ev ? arrivalHead(ev.date, ev.title) : '', arrivalBlocks(ix, s.items.filter(it => it.arrivalId === evId)), ev && ev.date);
+  }
+  /** Посилки, що їдуть → «Група:\n3.11 - 1, 3, 4, 6» */
+  function shipText(s, items) {
+    const ix = index(s), by = new Map();
+    for (const it of items) {
+      if (!by.has(it.groupId)) by.set(it.groupId, []);
+      by.get(it.groupId).push(it);
+    }
+    const gids = groupOrder(s, [...by.keys()]);
+    return gids.map(gid => {
+      const days = new Map();
+      for (const it of by.get(gid).sort(cmpItem)) {
+        if (!days.has(it.date)) days.set(it.date, []);
+        days.get(it.date).push(it.number != null ? String(it.number) : it.desc);
+      }
+      return groupName(ix, gid) + ':\n' + [...days.entries()].map(([d, a]) => fmtDay(d) + ' - ' + a.join(', ')).join('\n');
+    }).join('\n\n');
+  }
+
+  /* ---------- відвантаження ---------- */
+  function ship(s, ids, date) {
+    const ts = new Date().toISOString();
+    const ev = { id: uid('out'), kind: 'out', date: date || todayStr(), ts, count: 0 };
+    for (const id of ids) {
+      const it = s.items.find(x => x.id === id);
+      if (!it || it.state !== 'stock') continue;
+      it.state = 'departed'; it.shipmentId = ev.id; it.updatedAt = ts;
+      ev.count++;
+    }
+    if (!ev.count) return { ok: false, err: 'Немає посилок для відвантаження' };
+    s.events.push(ev);
+    return { ok: true, event: ev };
+  }
+  function cancelShipment(s, ev) {
+    const ts = new Date().toISOString();
+    for (const it of s.items) if (it.shipmentId === ev.id) { it.state = 'stock'; it.shipmentId = null; it.updatedAt = ts; }
+    s.events = s.events.filter(e => e.id !== ev.id);
+    return { ok: true };
+  }
+  function deleteArrival(s, ev) {
+    if (s.items.some(it => it.arrivalId === ev.id && it.state === 'departed')) return { ok: false, err: 'Частина посилок уже поїхала — спершу скасуйте ту загрузку' };
+    s.items = s.items.filter(it => it.arrivalId !== ev.id);
+    s.events = s.events.filter(e => e.id !== ev.id);
+    return { ok: true };
+  }
+
+  /* ---------- редагування ---------- */
+  function editItem(s, it, f) {
+    const groupId = f.groupId || it.groupId, date = f.date || it.date;
+    const number = 'number' in f ? f.number : it.number;
+    if (number != null && !(Number.isInteger(number) && number >= 0)) return { ok: false, err: 'Номер має бути цілим числом' };
+    if (number == null && !clean(f.desc != null ? f.desc : it.desc)) return { ok: false, err: 'Вкажіть номер або опис' };
+    Object.assign(it, { groupId, date, number });
+    if (f.desc != null) it.desc = clean(f.desc);
+    if (f.note != null) it.note = clean(f.note);
+    if ('problem' in f) it.problem = !!f.problem;
+    it.updatedAt = new Date().toISOString();
+    return { ok: true };
+  }
+  function deleteItem(s, it) {
+    s.items = s.items.filter(x => x.id !== it.id);
+    for (const ev of s.events) {
+      if (ev.id === it.arrivalId || ev.id === it.shipmentId) ev.count = Math.max(0, ev.count - 1);
+    }
+    s.events = s.events.filter(e => e.count > 0);
+    return { ok: true };
+  }
+  function renameGroup(s, g, name) {
+    name = clean(name);
+    if (!name) return { ok: false, err: 'Назва не може бути порожньою' };
+    const other = findGroup(s, name);
+    if (other && other.id !== g.id) return { ok: false, err: 'Група «' + name + '» уже існує' };
+    g.name = name;
+    return { ok: true };
+  }
+  function deleteGroup(s, g) {
+    if (s.items.some(i => i.groupId === g.id)) return { ok: false, err: 'У групі є посилки' };
+    s.groups = s.groups.filter(x => x.id !== g.id);
+    return { ok: true };
+  }
+
+  /* ---------- пошук ---------- */
+  function tokens(q) { return norm(q).replace(/[№#]/g, ' ').split(/[\s,;]+/).filter(Boolean); }
+  function matchItem(ix, it, toks) {
+    if (!toks.length) return true;
+    const g = norm(groupName(ix, it.groupId)), d = norm(it.desc + ' ' + it.note);
+    return toks.every(t => {
+      if (/^\d+$/.test(t)) return (it.number != null && String(it.number) === t) || d.includes(t);
+      const dm = t.match(/^(\d{1,2})\.(\d{1,2})\.?$/);
+      if (dm) return +it.date.slice(8, 10) === +dm[1] && +it.date.slice(5, 7) === +dm[2];
+      return g.includes(t) || d.includes(t);
+    });
+  }
+
+  /* ---------- резервні копії ---------- */
+  function exportData(s) {
+    return { app: 'miy-sklad', version: 2, exportedAt: new Date().toISOString(),
+      groups: s.groups, items: s.items, events: s.events, settings: s.settings, legacy: s.legacy };
+  }
+  function validateImport(o) {
+    const errors = [], warnings = [];
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return { ok: false, errors: ['Файл не є резервною копією «Мого складу»'], warnings };
+    if (o.app && o.app !== 'miy-sklad') warnings.push('Файл створено іншим застосунком: ' + o.app);
+    for (const k of ['groups', 'items']) if (!Array.isArray(o[k])) errors.push('Немає розділу «' + k + '»');
+    if (errors.length) return { ok: false, errors, warnings };
+    if (o.version !== 2) warnings.push('Копія старої версії: місії не переносяться, посилки й товари — так');
+    const s = migrate(o);
+    const gIds = new Set(s.groups.map(g => g.id)), ids = new Set();
+    if (gIds.size !== s.groups.length) errors.push('Повторні id груп');
+    for (const it of s.items) {
+      if (ids.has(it.id)) errors.push('Повторний id посилки ' + it.id); ids.add(it.id);
+      if (!gIds.has(it.groupId)) errors.push('Посилка ' + it.id + ' посилається на неіснуючу групу');
+    }
+    const lost = o.items.length - s.items.length;
+    if (lost) warnings.push('Пошкоджених записів пропущено: ' + lost);
+    const uniq = [...new Set(errors)];
+    return { ok: !uniq.length, errors: uniq.slice(0, 12), warnings, state: s,
+      stats: { groups: s.groups.length, items: s.items.length, stock: s.items.filter(i => i.state === 'stock').length, events: s.events.length } };
+  }
+
+  const Core = {
+    uid, todayStr, fmtDay, fmtDate, norm, clean, cap, cmpStr, cmpItem,
+    emptyState, migrate, index, findGroup, groupOrder, ensureGroup, findParcel, groupName, itemLabel,
+    mkDate, packId, parseArrival, planArrival, applyArrival, parcelLine, arrivalHead, formatArrival, arrivalBlocks, arrivalText, shipText,
+    ship, cancelShipment, deleteArrival, editItem, deleteItem, renameGroup, deleteGroup,
+    tokens, matchItem, exportData, validateImport
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = Core;
+  root.Core = Core;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* «Мій склад» — інтерфейс. Без бібліотек: рендер рядками, делегування подій. */
+(function () {
+  'use strict';
+  const C = window.Core;
+  const IS_ARTIFACT = !!window.__MS_ARTIFACT__;
+  const VERSION = window.__MS_VERSION__ || 'dev';
+  const $ = (s, el) => (el || document).querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const today = () => C.todayStr();
+  const pad = n => String(n).padStart(2, '0');
+  const fmtTime = ts => { const d = new Date(ts); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+  const plural = (n, a, b, c) => { const m10 = n % 10, m100 = n % 100; return n + ' ' + (m10 === 1 && m100 !== 11 ? a : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? b : c)); };
+  const pcs = n => plural(n, 'посилка', 'посилки', 'посилок');
+  const grp = n => plural(n, 'група', 'групи', 'груп');
+
+  const ICON = {
+    box: '<svg viewBox="0 0 24 24"><path d="M3.5 7.5 12 3.5l8.5 4v9l-8.5 4-8.5-4z"/><path d="M3.5 7.5 12 11.5l8.5-4M12 11.5v9"/></svg>',
+    truck: '<svg viewBox="0 0 24 24"><path d="M2.5 6.5h11v10h-11zM13.5 10h4l3 3.5v3h-7"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>',
+    clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+    gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.6M12 18.6v2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M2.8 12h2.6M18.6 12h2.6M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"/></svg>',
+    back: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+    search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>',
+    copy: '<svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.2"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/></svg>',
+    share: '<svg viewBox="0 0 24 24"><path d="M12 3.5v11M8 7.5l4-4 4 4"/><path d="M5.5 11.5v7a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-7"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    camera: '<svg viewBox="0 0 24 24"><path d="M3.5 8.5a2 2 0 0 1 2-2h2l1.5-2h6l1.5 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>'
+  };
+  const ic = n => '<span class="ic">' + ICON[n] + '</span>';
+  const KIND = { in: { t: 'Прийом', st: 'var(--in)' }, out: { t: 'Загрузка', st: 'var(--out)' } };
+  const pill = (color, text) => '<span class="pill" style="--st:' + color + '">' + esc(text) + '</span>';
+
+  /* ================= стан застосунку ================= */
+  const App = {
+    state: C.emptyState(),
+    route: { name: 'stock', p: {} },
+    stack: [],
+    scroll: {},
+    undo: [],
+    sheetCtx: null, sheetGen: 0,
+    photos: [],
+    dd: { groups: [], rows: [], active: null, num: '', desc: {}, prob: false, last: null },
+    ui: {
+      q: '', sel: new Set(),
+      inMode: 'cards', inTitle: '', inText: '', inDate: today(), inShow: false, inProb: new Set(), inAllowDup: false
+    },
+    storageErr: false, swWaiting: null, persisted: null
+  };
+  const S = () => App.state;
+
+  /* ================= зберігання ================= */
+  const LS_KEY = 'miy-sklad-state', LS_UI = 'miy-sklad-ui';
+  const Store = {
+    mode: 'memory', db: null, t: null, tu: null,
+    open() {
+      return new Promise((res, rej) => {
+        let r;
+        try { r = indexedDB.open('miy-sklad', 1); } catch (e) { rej(e); return; }
+        r.onupgradeneeded = () => { r.result.createObjectStore('kv'); };
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+        r.onblocked = () => rej(new Error('blocked'));
+        setTimeout(() => rej(new Error('timeout')), 4000);
+      });
+    },
+    get(k) { return new Promise((res, rej) => { try { const q = this.db.transaction('kv', 'readonly').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); } catch (e) { rej(e); } }); },
+    put(k, v) { return new Promise((res, rej) => { try { const tx = this.db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); } catch (e) { rej(e); } }); },
+    async init() {
+      try { if (!window.indexedDB) throw new Error('no idb'); this.db = await this.open(); this.mode = 'idb'; }
+      catch (e) { try { localStorage.setItem('__ms', '1'); localStorage.removeItem('__ms'); this.mode = 'local'; } catch (_) { this.mode = 'memory'; } }
+    },
+    async load() {
+      let a = null, b = null;
+      if (this.mode === 'idb') { try { a = await this.get('state'); } catch (e) { /* ignore */ } }
+      try { const raw = localStorage.getItem(LS_KEY); if (raw) b = JSON.parse(raw); } catch (e) { /* ignore */ }
+      if (a && b) return (b.savedAt || '') > (a.savedAt || '') ? b : a;
+      return a || b;
+    },
+    async loadUi() {
+      if (this.mode === 'idb') { try { const v = await this.get('ui'); if (v) return v; } catch (e) { /* ignore */ } }
+      try { const raw = localStorage.getItem(LS_UI); if (raw) return JSON.parse(raw); } catch (e) { /* ignore */ }
+      return null;
+    },
+    save() { clearTimeout(this.t); this.t = setTimeout(() => this.flush(), 120); },
+    async flush() {
+      clearTimeout(this.t); this.t = null;
+      const st = S(); st.savedAt = new Date().toISOString();
+      if (this.mode === 'idb') {
+        try { await this.put('state', st); App.storageErr = false; try { localStorage.removeItem(LS_KEY); } catch (e) { /* */ } return; }
+        catch (e) { console.warn('IndexedDB save failed', e); }
+      }
+      try { localStorage.setItem(LS_KEY, JSON.stringify(st)); App.storageErr = false; }
+      catch (e) { if (!App.storageErr) { App.storageErr = true; render(); } }
+    },
+    saveUi() {
+      clearTimeout(this.tu);
+      this.tu = setTimeout(() => {
+        const u = App.ui;
+        const v = { v: 2, inText: u.inText, inDate: u.inDate, inTitle: u.inTitle, inMode: u.inMode, dd: App.dd, sel: [...u.sel] };
+        if (this.mode === 'idb') this.put('ui', v).catch(() => { /* */ });
+        else { try { localStorage.setItem(LS_UI, JSON.stringify(v)); } catch (e) { /* */ } }
+      }, 300);
+    }
+  };
+  function persist() {
+    Store.save();
+    if (!App.persistAsked && S().items.length && navigator.storage && navigator.storage.persist) {
+      App.persistAsked = true;
+      navigator.storage.persist().then(v => { App.persisted = v; }).catch(() => { /* */ });
+    }
+  }
+
+  /* ================= операції з undo ================= */
+  function op(label, fn, opt) {
+    opt = opt || {};
+    const before = JSON.stringify(S());
+    let res;
+    try { res = fn(S()); }
+    catch (err) { console.error(err); App.state = JSON.parse(before); toast('Помилка: ' + err.message, { kind: 'err' }); render(); return null; }
+    if (res && res.ok === false) { App.state = JSON.parse(before); toast(res.err || 'Не вдалося виконати дію', { kind: 'err' }); render(); return res; }
+    if (JSON.stringify(S()) === before) { toast('Без змін'); render(); return res; }
+    App.undo.push({ before, label });
+    if (App.undo.length > 20) App.undo.shift();
+    persist(); render();
+    if (!opt.noToast) toast(opt.msg ? opt.msg(res) : label, { undo: true });
+    return res || { ok: true };
+  }
+  function doUndo() {
+    const u = App.undo.pop();
+    if (!u) { toast('Немає чого скасовувати'); return; }
+    App.state = JSON.parse(u.before);
+    const ix = C.index(S());
+    if (App.route.name === 'event' && !ix.events.has(App.route.p.id)) { App.stack = []; App.route = { name: 'hist', p: {} }; }
+    persist(); closeSheet(); render(); toast('Скасовано: ' + u.label);
+  }
+
+  /* ================= навігація ================= */
+  const TABS = ['stock', 'intake', 'hist'];
+  const routeKey = r => r.name + (r.p && r.p.id ? ':' + r.p.id : '');
+  function saveScroll() { App.scroll[routeKey(App.route)] = window.scrollY; }
+  function go(name, p, o) {
+    o = o || {};
+    saveScroll();
+    if (TABS.includes(name) && !o.push) App.stack = [];
+    else App.stack.push(App.route);
+    App.route = { name, p: p || {} };
+    if (name !== 'event') clearPhotos();
+    closeSheet();
+    render();
+    window.scrollTo(0, TABS.includes(name) ? (App.scroll[routeKey(App.route)] || 0) : 0);
+  }
+  function back() {
+    saveScroll();
+    App.route = App.stack.pop() || { name: 'stock', p: {} };
+    clearPhotos();
+    render();
+    window.scrollTo(0, App.scroll[routeKey(App.route)] || 0);
+  }
+  function activeTab() {
+    if (TABS.includes(App.route.name)) return App.route.name;
+    for (let k = App.stack.length - 1; k >= 0; k--) if (TABS.includes(App.stack[k].name)) return App.stack[k].name;
+    return App.route.name === 'ship' ? 'stock' : App.route.name === 'inrev' ? 'intake' : 'hist';
+  }
+
+  /* ================= рендер ================= */
+  function head() {
+    const n = App.route.name;
+    const map = {
+      stock: { title: 'Склад', actions: [['go-prefs', 'gear', 'Налаштування']] },
+      intake: { title: 'Підвоз', actions: [['go-prefs', 'gear', 'Налаштування']] },
+      hist: { title: 'Історія', actions: [['go-prefs', 'gear', 'Налаштування']] },
+      ship: { title: 'Список на загрузку', back: true, actions: [] },
+      inrev: { title: 'Перевірка підвозу', back: true, actions: [] },
+      event: { title: (KIND[(C.index(S()).events.get(App.route.p.id) || {}).kind] || { t: 'Запис' }).t, back: true, actions: [] },
+      prefs: { title: 'Налаштування', back: true, actions: [] }
+    };
+    const h = map[n] || map.stock;
+    return (h.back ? '<button class="icon-btn back" data-act="back" aria-label="Назад">' + ic('back') + '</button>' : '') +
+      '<h1>' + esc(h.title) + '</h1>' +
+      h.actions.map(a => '<button class="icon-btn" data-act="' + a[0] + '" aria-label="' + esc(a[2]) + '" title="' + esc(a[2]) + '">' + ic(a[1]) + '</button>').join('');
+  }
+  function tabbar() {
+    const t = activeTab(), n = App.ui.sel.size;
+    const b = (id, icon, label, badge) => '<button class="tab' + (t === id ? ' on' : '') + '" data-act="tab" data-tab="' + id + '">' + ic(icon) + '<span>' + label + '</span>' + (badge ? '<span class="badge">' + badge + '</span>' : '') + '</button>';
+    return b('stock', 'box', 'Склад', n) + b('intake', 'truck', 'Підвоз') + b('hist', 'clock', 'Історія');
+  }
+  const VIEWS = {};
+  function render() {
+    const v = VIEWS[App.route.name] || VIEWS.stock;
+    $('#topbar').innerHTML = head();
+    const main = $('#view');
+    main.innerHTML = v();
+    $('#tabbar').innerHTML = tabbar();
+    const hasBar = !!main.querySelector('.action-bar');
+    main.classList.toggle('has-bar', hasBar);
+    document.body.classList.toggle('with-bar', hasBar);
+  }
+  function applyTheme() {
+    const t = S().settings.theme || 'dark';
+    const light = t === 'light' || (t === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches);
+    document.documentElement.classList.toggle('theme-light', light);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', light ? '#f2f4f6' : '#0d131a');
+  }
+  function banners() {
+    let h = '';
+    if (App.swWaiting) h += '<div class="card banner"><div><b>Доступна нова версія</b><p class="small muted">Дані залишаться на місці.</p></div><button class="btn btn-primary btn-sm" data-act="sw-update">Оновити</button></div>';
+    if (Store.mode === 'memory' || App.storageErr) h += '<div class="card danger-card"><h3>Дані не зберігаються</h3><p>Браузер не дає записувати дані (можливо, приватний режим). Зробіть резервну копію перед закриттям.</p><button class="btn btn-sm" data-act="backup">Зберегти копію</button></div>';
+    const st = S();
+    if (st.items.length) {
+      const last = st.settings.lastBackupAt;
+      const days = last ? Math.floor((Date.now() - new Date(last).getTime()) / 864e5) : null;
+      if (days == null || days >= 7) h += '<div class="card banner warn"><div><b>' + (days == null ? 'Резервної копії ще немає' : 'Остання копія ' + plural(days, 'день', 'дні', 'днів') + ' тому') + '</b><p class="small muted">Дані зберігаються лише на цьому пристрої.</p></div><button class="btn btn-sm" data-act="backup">Зберегти</button></div>';
+    }
+    return h;
+  }
+
+  /* ================= СКЛАД (залишок) ================= */
+  function pruneSel() {
+    const ix = C.index(S());
+    for (const id of [...App.ui.sel]) { const it = ix.items.get(id); if (!it || it.state !== 'stock') App.ui.sel.delete(id); }
+  }
+  VIEWS.stock = function () {
+    pruneSel();
+    const s = S(), u = App.ui;
+    let h = banners();
+    const stock = s.items.filter(it => it.state === 'stock');
+    if (!stock.length) {
+      h += '<div class="card"><h3>' + (s.items.length ? 'Склад порожній — усе поїхало' : 'Склад порожній') + '</h3>' +
+        '<p>Приїхала машина? Вкладка «Підвоз»: виберіть позицію, натисніть «+» і записуйте номери — у будь-якому порядку.</p>' +
+        '<button class="btn btn-primary btn-block" data-act="tab" data-tab="intake">' + ic('truck') + 'Прийняти машину</button></div>';
+      return h;
+    }
+    const ngr = new Set(stock.map(it => it.groupId)).size;
+    h += '<div class="totals"><b>' + stock.length + '</b><span>' + plural(stock.length, 'посилка', 'посилки', 'посилок').replace(/^\d+ /, '') + ' на складі · ' + grp(ngr) + '</span></div>';
+    h += '<div class="search">' + ic('search') + '<input class="input" id="stock-q" type="search" enterkeyhint="search" autocomplete="off" placeholder="Манчестер, 3.11, дрон, 12…" value="' + esc(u.q) + '" data-in="stock-q"></div>';
+    h += '<p class="hint">Натисніть посилки, що їдуть. Утримуйте — щоб змінити чи видалити.</p>';
+    h += '<div id="stock-list">' + stockList() + '</div>';
+    if (u.sel.size) {
+      h += '<div class="action-bar"><span class="summary">Їдуть<br><b>' + u.sel.size + '</b></span>' +
+        '<button class="btn btn-sm" data-act="sel-clear">Скинути</button>' +
+        '<button class="btn btn-primary" data-act="go-ship">' + ic('truck') + 'Список</button></div>';
+    }
+    return h;
+  };
+  function stockList() {
+    const ix = C.index(S()), u = App.ui, toks = C.tokens(u.q);
+    const list = S().items.filter(it => it.state === 'stock' && C.matchItem(ix, it, toks));
+    if (!list.length) return '<div class="card empty">Нічого не знайдено за «' + esc(u.q) + '»</div>';
+    const by = new Map();
+    for (const it of list) { if (!by.has(it.groupId)) by.set(it.groupId, []); by.get(it.groupId).push(it); }
+    const gids = C.groupOrder(S(), [...by.keys()]);
+    return gids.map(gid => {
+      const its = by.get(gid).sort(C.cmpItem);
+      const allSel = its.every(it => u.sel.has(it.id));
+      let h = '<section class="gsec"><div class="gsec-head"><h3>' + esc(C.groupName(ix, gid)) + '<small>' + its.length + '</small></h3>' +
+        '<button class="btn btn-ghost btn-sm" data-act="sel-group" data-gid="' + gid + '">' + (allSel ? 'Зняти' : 'Усі') + '</button></div>';
+      const days = new Map();
+      for (const it of its) { if (!days.has(it.date)) days.set(it.date, []); days.get(it.date).push(it); }
+      for (const [d, arr] of days) {
+        const dSel = arr.every(it => u.sel.has(it.id));
+        h += '<button class="dhead" data-act="sel-day" data-gid="' + gid + '" data-day="' + d + '"><span><b>' + C.fmtDay(d) + '</b> · ' + arr.length + ' шт</span><span class="pick">' + (dSel ? 'зняти' : 'вибрати всі') + '</span></button>';
+        h += '<div class="pgrid">' + arr.map(it => {
+          const cls = 'pc' + (u.sel.has(it.id) ? ' sel' : '') + (it.problem ? ' prob' : '') + (it.number == null ? ' nonum' : '');
+          return '<button class="' + cls + '" data-act="pc" data-id="' + it.id + '" aria-pressed="' + u.sel.has(it.id) + '">' +
+            (it.number != null ? '<b>' + it.number + '</b>' + (it.desc ? '<small>' + esc(it.desc) + '</small>' : '') : '<b>' + esc(it.desc) + '</b>') + '</button>';
+        }).join('') + '</div>';
+      }
+      return h + '</section>';
+    }).join('');
+  }
+
+  /* ================= СПИСОК НА ЗАГРУЗКУ ================= */
+  function selItems() {
+    const ix = C.index(S());
+    return [...App.ui.sel].map(id => ix.items.get(id)).filter(it => it && it.state === 'stock');
+  }
+  VIEWS.ship = function () {
+    pruneSel();
+    const items = selItems();
+    if (!items.length) { setTimeout(() => { if (App.route.name === 'ship') back(); }, 0); return ''; }
+    const text = C.shipText(S(), items);
+    const left = S().items.filter(it => it.state === 'stock').length - items.length;
+    let h = '<div class="sec-title"><h2>Для начальника</h2><span class="label">' + pcs(items.length) + '</span></div>';
+    h += '<pre class="msgtext">' + esc(text) + '</pre>';
+    h += '<p class="hint" style="margin:0">Після списання на складі залишиться ' + pcs(left) + '. Помилку можна виправити в «Історії» → «Повернути на склад».</p>';
+    h += '<div class="action-bar"><button class="btn" data-act="ship-copy" aria-label="Лише скопіювати">' + ic('copy') + '</button>' +
+      '<button class="btn" data-act="ship-share" aria-label="Поділитися">' + ic('share') + '</button>' +
+      '<button class="btn btn-primary" style="flex:1" data-act="ship-go">Скопіювати й списати</button></div>';
+    return h;
+  };
+
+  /* ================= ПРИЙОМ (підвоз) ================= */
+  // Кожна позиція — картка з «+». Номер набирається звичайною клавіатурою, Enter — записано.
+  // Вміст запам'ятовується для позиції, тож сім «паливо» поспіль — це сім номерів і сім Enter.
+  const DEF_CONTENTS = ['вода', 'провізія', 'бк', 'батки', 'паливо', 'колібрі'];
+  function newDraft() { return { groups: [], rows: [], active: null, num: '', desc: {}, prob: false, last: null }; }
+  const D = () => App.dd;
+  const gk = n => C.norm(n);
+  const draftRows = g => D().rows.filter(r => gk(r.g) === gk(g));
+  const sortRows = rows => rows.slice().sort((a, b) => (a.number == null) - (b.number == null) || (a.number || 0) - (b.number || 0));
+  function rowFlags(r) {
+    if (r.number == null) return [];
+    const f = [];
+    if (D().rows.some(x => x !== r && gk(x.g) === gk(r.g) && x.number === r.number)) f.push('номер повторюється');
+    const grp = C.findGroup(S(), r.g), d = App.ui.inDate || today();
+    if (grp && S().items.some(it => it.groupId === grp.id && it.number === r.number && it.date === d && it.state === 'stock')) f.push('уже є на складі');
+    return f;
+  }
+  function contentsFor(g) {
+    const cnt = new Map(), name = new Map();
+    const add = (t, w) => { const k = C.norm(t); if (!k || k.length > 22) return; cnt.set(k, (cnt.get(k) || 0) + w); if (!name.has(k)) name.set(k, C.clean(t)); };
+    const grp = C.findGroup(S(), g);
+    for (const it of S().items) if (it.number != null) add(it.desc, grp && it.groupId === grp.id ? 3 : 1);
+    for (const r of D().rows) if (r.number != null) add(r.desc, gk(r.g) === gk(g) ? 3 : 1);
+    DEF_CONTENTS.forEach((t, k) => add(t, 0.01 * (DEF_CONTENTS.length - k)));
+    return [...cnt.keys()].sort((a, b) => cnt.get(b) - cnt.get(a)).slice(0, 8).map(k => name.get(k));
+  }
+  function knownGroups() {
+    const s = S(), last = new Map();
+    for (const it of s.items) if ((last.get(it.groupId) || '') < (it.createdAt || '')) last.set(it.groupId, it.createdAt || '');
+    return s.groups.slice().sort((a, b) => (last.get(b.id) || '').localeCompare(last.get(a.id) || '') || C.cmpStr(a.name, b.name)).map(g => g.name);
+  }
+  function lastArrivalGroups() {
+    const s = S(), ev = s.events.filter(e => e.kind === 'in').sort((a, b) => (b.ts || '').localeCompare(a.ts || ''))[0];
+    if (!ev) return [];
+    const ix = C.index(s);
+    return [...new Set(s.items.filter(it => it.arrivalId === ev.id).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || '')).map(it => C.groupName(ix, it.groupId)))];
+  }
+  function draftBlocks() {
+    const d = App.ui.inDate || today();
+    return D().groups.map(g => ({ name: C.cap(g), rows: sortRows(draftRows(g)).map((r, k) => ({ line: k, number: r.number, date: d, desc: r.desc, problem: r.problem })) })).filter(b => b.rows.length);
+  }
+  function draftCard(g) {
+    const d = D(), rows = sortRows(draftRows(g)), open = gk(d.active || '') === gk(g);
+    let h = '<section class="gsec' + (open ? ' open' : '') + '"><div class="gsec-head"><h3>' + esc(g) + '<small>' + rows.length + '</small></h3>' +
+      (open ? '<button class="btn btn-sm" data-act="d-close">Згорнути</button>'
+        : '<button class="btn btn-primary d-plus" data-act="d-open" data-g="' + esc(g) + '" aria-label="Додати посилку в ' + esc(g) + '">' + ic('plus') + '</button>') + '</div>';
+    if (rows.length) h += '<div class="dchips">' + rows.map(r => {
+      const bad = rowFlags(r).length;
+      return '<button class="dchip' + (bad ? ' bad' : '') + (r.problem ? ' prob' : '') + (r.id === d.last ? ' last' : '') + '" data-act="d-row" data-id="' + r.id + '">' +
+        (r.number != null ? '<b>' + r.number + '</b> ' : '') + esc(r.desc || '—') + (r.problem ? ' ⚠' : '') + '</button>';
+    }).join('') + '</div>';
+    if (open) {
+      const desc = d.desc[gk(g)] || '';
+      h += '<div class="entry"><input class="input enum" id="d-num" data-in="d-num" inputmode="numeric" pattern="[0-9]*" enterkeyhint="go" autocomplete="off" placeholder="№" value="' + esc(d.num) + '">' +
+        '<input class="input" id="d-desc" data-in="d-desc" enterkeyhint="go" autocomplete="off" autocapitalize="off" placeholder="що всередині" value="' + esc(desc) + '">' +
+        '<button class="icon-btn eprob' + (d.prob ? ' on' : '') + '" data-act="d-prob" aria-label="Проблемна посилка">⚠</button></div>';
+      h += '<div class="dchips">' + contentsFor(g).map(t => '<button class="qchip sm' + (C.norm(t) === C.norm(desc) ? ' on' : '') + '" data-act="d-desc" data-desc="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>';
+      h += '<button class="btn btn-primary btn-block" data-act="d-add">Записати</button>';
+      h += '<p class="hint" style="margin:0">Номер → Enter: записано з тим самим вмістом. Інший вміст — набрати номер і натиснути кнопку вмісту. Без номера — товар, напр. «Бк - 4 цинка».</p>';
+    }
+    return h + '</section>';
+  }
+  function inParsed() {
+    const u = App.ui;
+    const parsed = C.parseArrival(u.inText, u.inDate || today(), S());
+    const plan = C.planArrival(S(), parsed);
+    for (const b of parsed.blocks) for (const r of b.rows) if (u.inProb.has(r.line)) r.problem = !r.problem;
+    return { parsed, plan };
+  }
+  VIEWS.intake = function () {
+    const u = App.ui, d = D();
+    if (u.inMode === 'text') return intakeText();
+    let h = '<div class="qhead"><button class="qhead-main" data-act="in-meta"><b>' + C.fmtDay(u.inDate || today()) + '</b> · ' +
+      (u.inTitle.trim() ? esc(u.inTitle) : '<span class="warn-text">вказати маршрут</span>') + ' <span class="qedit">змінити</span></button>' +
+      '<button class="btn btn-primary btn-sm" data-act="d-done"' + (d.rows.length ? '' : ' disabled') + '>Готово · ' + d.rows.length + '</button></div>';
+    if (!d.groups.length) h += '<div class="card"><h3>Новий підвоз</h3><p>Виберіть позицію нижче, потім біля неї «+» і записуйте номери в будь-якому порядку — список сам посортується.</p></div>';
+    h += d.groups.map(draftCard).join('');
+    const inDraft = new Set(d.groups.map(gk));
+    const rest = knownGroups().filter(n => !inDraft.has(gk(n)));
+    const lastG = lastArrivalGroups().filter(n => !inDraft.has(gk(n)));
+    h += '<div class="sec-title"><h2>' + (d.groups.length ? 'Ще позиція' : 'Позиції') + '</h2>' + (lastG.length > 1 && !d.groups.length ? '<button class="btn btn-ghost btn-sm" data-act="d-lastg">Як минулого разу</button>' : '') + '</div>';
+    h += '<div class="qchips">' + rest.map(n => '<button class="qchip" data-act="d-addg" data-g="' + esc(n) + '">' + esc(n) + '</button>').join('') + '<button class="qchip add" data-act="d-newg">+ Нова</button></div>';
+    h += '<button class="btn btn-ghost btn-sm" data-act="in-mode" data-k="text" style="align-self:flex-start">Вставити готовий текст</button>';
+    return h;
+  };
+  function intakeText() {
+    const u = App.ui;
+    let h = '<div class="grid-2e"><label class="field"><span>Дата підвозу</span><input class="input" type="date" id="in-date" data-in="in-date" value="' + esc(u.inDate) + '"></label>' +
+      '<label class="field"><span>Маршрут</span><input class="input" id="in-title" data-in="in-title" autocomplete="off" placeholder="РЗ -> Федекс" value="' + esc(u.inTitle) + '"></label></div>';
+    h += '<div class="seg">' + [['cards', 'Картками'], ['text', 'Текстом']].map(([k, t]) => '<button class="' + ((u.inMode === 'text') === (k === 'text') ? 'on' : '') + '" data-act="in-mode" data-k="' + k + '">' + t + '</button>').join('') + '</div>';
+    h += '<label class="field"><span>Що приїхало</span><textarea class="textarea" id="in-text" data-in="in-text" rows="12" spellcheck="false" autocapitalize="sentences" placeholder="04.11 РЗ -> Федекс&#10;*Пегас*&#10;18 - паливо&#10;4 - газ&#10;&#10;*Атлас*&#10;Бк - 4 цинка">' + esc(u.inText) + '</textarea></label>';
+    h += '<p class="hint">Вставте список із месенджера: перший рядок «дата маршрут», позиції — «*Назва*» або окремим рядком після порожнього, під ними «номер - вміст». Рядки без номера — товари.</p>';
+    h += '<div id="in-prev">' + (u.inShow ? inPreview() : '<button class="btn btn-primary btn-block" data-act="in-check">Перевірити</button>') + '</div>';
+    return h;
+  }
+  function inPreview() {
+    const u = App.ui, { parsed, plan } = inParsed();
+    if (!parsed.total) return '<div class="card warn"><b>Не знайдено жодної посилки</b><p class="small muted" style="margin:4px 0 0">Назва позиції окремим рядком, під нею «18 - паливо».</p>' +
+      (parsed.warnings.length ? '<div class="list-text" style="margin-top:8px">' + parsed.warnings.map(esc).join('<br>') + '</div>' : '') + '</div>';
+    const adding = u.inAllowDup ? parsed.total : plan.fresh;
+    let h = '';
+    if (parsed.header) h += '<div class="card banner"><div><b>' + esc(C.arrivalHead(parsed.header.date, parsed.header.title)) + '</b><p class="small muted">Заголовок із першого рядка — замінить дату й маршрут вище.</p></div></div>';
+    h += '<div class="card"><p style="margin:0 0 8px">Натисніть посилку, щоб позначити її як проблемну ⚠ (для фото начальнику).</p>';
+    for (const b of parsed.blocks) {
+      h += '<div class="iblock"><h4>' + esc(b.name) + '<span>' + b.rows.length + ' шт</span></h4>' +
+        b.rows.slice().sort(C.cmpItem).map(r => {
+          const dup = r.dup && !u.inAllowDup;
+          return '<button class="irow' + (r.problem ? ' prob' : '') + (dup ? ' dup' : '') + '" data-act="in-prob" data-line="' + r.line + '"' + (dup ? ' disabled' : '') + '>' +
+            '<span class="n">' + (r.number != null ? r.number : '•') + '</span><span class="d">' + esc(r.desc || '—') + '</span>' +
+            '<span class="flag">' + (dup ? (r.dup === 'departed' ? 'уже поїхала' : 'уже є') : r.problem ? '⚠ проблема' : 'ок') + '</span></button>';
+        }).join('') + '</div>';
+    }
+    h += '</div>';
+    if (parsed.warnings.length) h += '<div class="card warn"><b class="warn-text">Зверніть увагу</b><div class="list-text" style="margin-top:6px">' + parsed.warnings.map(esc).join('<br>') + '</div></div>';
+    if (plan.dup) h += '<div class="card warn"><b>Уже записані раніше: ' + plan.dup + '</b><p class="small" style="margin:4px 0 8px">Та сама позиція, дата й номер. Їх буде пропущено, щоб не задублювати.</p>' +
+      '<label class="check-row"><input type="checkbox" data-act="in-allowdup"' + (u.inAllowDup ? ' checked' : '') + '><span>Додати все одно</span></label></div>';
+    h += '<div class="action-bar"><span class="summary">На склад<br><b>' + adding + '</b></span>' +
+      '<button class="btn btn-sm" data-act="in-edit">Змінити</button>' +
+      '<button class="btn btn-primary" data-act="in-save"' + (adding ? '' : ' disabled') + '>Зберегти</button></div>';
+    return h;
+  }
+  /** Перевірка підвозу перед збереженням */
+  VIEWS.inrev = function () {
+    const d = D(), u = App.ui;
+    if (!d.rows.length) { setTimeout(() => { if (App.route.name === 'inrev') back(); }, 0); return ''; }
+    const blocks = draftBlocks(), prob = d.rows.filter(r => r.problem).length;
+    const bad = d.rows.map(r => ({ r, f: rowFlags(r) })).filter(x => x.f.length);
+    let h = '<div class="mmeta"><span><b style="color:var(--fg)">' + pcs(d.rows.length) + '</b></span><span>' + plural(blocks.length, 'позиція', 'позиції', 'позицій') + '</span>' + (prob ? '<span class="warn-text">⚠ ' + prob + '</span>' : '') + '</div>';
+    if (bad.length) h += '<div class="card warn"><b class="warn-text">Перевірте</b><div class="list-text" style="margin-top:6px">' + [...new Set(bad.map(x => x.r.g + ' №' + x.r.number + ': ' + x.f.join(', ')))].map(esc).join('<br>') + '</div></div>';
+    if (!u.inTitle.trim()) h += '<p class="small warn-text" style="margin:0">Маршрут не вказано — у заголовку буде лише дата.</p>';
+    h += '<pre class="msgtext">' + esc(C.formatArrival(C.arrivalHead(u.inDate || today(), u.inTitle), blocks, u.inDate || today())) + '</pre>';
+    h += '<p class="hint" style="margin:0">Після збереження текст буде скопійовано, а на наступному екрані можна додати фото.</p>';
+    h += '<div class="action-bar"><button class="btn" data-act="back">Дописати</button><button class="btn btn-primary" style="flex:1" data-act="d-save">Зберегти й скопіювати</button></div>';
+    return h;
+  };
+
+  /* ================= ІСТОРІЯ ================= */
+  VIEWS.hist = function () {
+    const s = S();
+    const evs = s.events.slice().sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+    if (!evs.length) return '<div class="empty">Тут з’являться прийоми машин і загрузки.<br>Кожен запис можна відкрити й скопіювати текст ще раз.</div>';
+    const ix = C.index(s);
+    const byEv = new Map();
+    for (const it of s.items) {
+      for (const k of [it.arrivalId, it.shipmentId]) if (k) { if (!byEv.has(k)) byEv.set(k, []); byEv.get(k).push(it); }
+    }
+    let h = '<div class="mlist">', lastDay = null;
+    for (const ev of evs) {
+      const day = C.todayStr(new Date(ev.ts));
+      if (day !== lastDay) { lastDay = day; h += '<div class="day-label">' + (day === today() ? 'Сьогодні' : C.fmtDate(day)) + '</div>'; }
+      const its = byEv.get(ev.id) || [];
+      const groups = C.groupOrder(s, [...new Set(its.map(it => it.groupId))]).map(id => C.groupName(ix, id));
+      const k = KIND[ev.kind];
+      const extra = ev.kind === 'in' ? (() => { const left = its.filter(it => it.state === 'stock').length; return left === its.length ? 'усі на складі' : left ? 'на складі ' + left : 'усі поїхали'; })() : '';
+      h += '<button class="mcard" data-act="event" data-id="' + ev.id + '"><span class="mcard-top">' + pill(k.st, k.t + ' · ' + C.fmtDay(ev.date)) + '<span class="mdate">' + fmtTime(ev.ts) + '</span></span>' +
+        '<span class="mtitle">' + esc(ev.title || groups.join(', ') || '—') + '</span><span class="mmeta"><span>' + pcs(its.length) + '</span>' + (ev.title ? '<span>' + esc(groups.join(', ')) + '</span>' : '') + (extra ? '<span>' + extra + '</span>' : '') +
+        (its.some(it => it.problem) && ev.kind === 'in' ? '<span class="warn-text">⚠ ' + its.filter(it => it.problem).length + '</span>' : '') + '</span></button>';
+    }
+    return h + '</div>';
+  };
+  function eventText(ev) {
+    if (ev.kind === 'in') return C.arrivalText(S(), ev.id);
+    return C.shipText(S(), S().items.filter(it => it.shipmentId === ev.id));
+  }
+  VIEWS.event = function () {
+    const s = S(), ix = C.index(s), ev = ix.events.get(App.route.p.id);
+    if (!ev) return '<div class="empty">Запис не знайдено.<br><br><button class="btn" data-act="tab" data-tab="hist">До історії</button></div>';
+    const its = s.items.filter(it => (ev.kind === 'in' ? it.arrivalId : it.shipmentId) === ev.id);
+    const groups = new Set(its.map(it => it.groupId)).size;
+    let h = '<div class="mhead"><div class="mmeta">' + pill(KIND[ev.kind].st, KIND[ev.kind].t) + '<span>' + C.fmtDate(ev.date) + '</span><span>записано ' + fmtTime(ev.ts) + '</span></div>' + (ev.title ? '<h2>' + esc(ev.title) + '</h2>' : '') +
+      '<div class="mmeta"><span><b style="color:var(--fg)">' + pcs(its.length) + '</b></span><span>' + grp(groups) + '</span>' +
+      (ev.kind === 'in' ? '<span>на складі ' + its.filter(it => it.state === 'stock').length + '</span>' : '') + '</div></div>';
+    h += '<div class="sec-title"><h2>Текст для начальника</h2></div>';
+    h += '<pre class="msgtext">' + esc(eventText(ev)) + '</pre>';
+    h += '<div class="row-btns"><button class="btn btn-primary" data-act="ev-copy">' + ic('copy') + 'Скопіювати</button><button class="btn" data-act="ev-share">' + ic('share') + 'Поділитися</button></div>';
+    if (ev.kind === 'in') {
+      const prob = its.filter(it => it.problem).sort(C.cmpItem);
+      h += '<section class="card"><h3>Фото проблемних посилок</h3>' +
+        (prob.length ? '<p>Позначені: ' + esc(prob.map(it => C.itemLabel(ix, it) + (it.desc && it.number != null ? ' (' + it.desc + ')' : '')).join(', ')) + '</p>' : '<p>Додайте фото — вони підуть разом із текстом. Фото не зберігаються в застосунку.</p>');
+      if (App.photos.length) h += '<div class="thumbs" style="margin-bottom:10px">' + App.photos.map((p, k) => '<div><img src="' + p.url + '" alt=""><button data-act="ph-del" data-k="' + k + '" aria-label="Прибрати фото">' + ICON.x + '</button></div>').join('') + '</div>';
+      h += '<div class="row-btns"><label class="btn" for="ph-in">' + ic('camera') + (App.photos.length ? 'Ще фото' : 'Додати фото') + '</label>' +
+        (App.photos.length ? '<button class="btn btn-primary" data-act="ph-send">' + ic('share') + 'Надіслати ' + App.photos.length + ' + текст</button>' : '') + '</div>' +
+        '<input type="file" id="ph-in" accept="image/*" multiple hidden data-act="photos"></section>';
+    }
+    if (ev.kind === 'in') {
+      const gone = its.some(it => it.state === 'departed');
+      h += '<section class="card danger-card"><h3>Видалити прийом</h3><p>' + (gone ? 'Частина посилок уже поїхала — спершу поверніть ту загрузку.' : 'Усі ' + pcs(its.length) + ' цього прийому зникнуть зі складу.') + '</p>' +
+        '<button class="btn btn-danger" data-act="ev-del"' + (gone ? ' disabled' : '') + '>Видалити прийом</button></section>';
+    } else {
+      h += '<section class="card danger-card"><h3>Повернути на склад</h3><p>Якщо машина не поїхала або список помилковий — ' + pcs(its.length) + ' знову з’являться в залишку.</p>' +
+        '<button class="btn btn-danger" data-act="ev-cancel">Повернути на склад</button></section>';
+    }
+    return h;
+  };
+
+  /* ================= НАЛАШТУВАННЯ ================= */
+  VIEWS.prefs = function () {
+    const s = S(), st = s.settings;
+    const last = st.lastBackupAt ? C.fmtDate(st.lastBackupAt) + ' ' + fmtTime(st.lastBackupAt) : 'ще не створювалась';
+    const where = Store.mode === 'idb' ? 'у базі браузера (IndexedDB)' : Store.mode === 'local' ? 'у сховищі браузера (localStorage)' : 'не зберігаються — лише до закриття вкладки';
+    let h = '<section class="card"><h3>Резервна копія</h3><p>Остання: ' + esc(last) + '. Копія — файл .json з усіма посилками та історією.</p>' +
+      '<div class="row-btns"><button class="btn btn-primary" data-act="backup">Зберегти копію</button><label class="btn" for="import-file">Відновити з файлу</label></div>' +
+      '<input type="file" id="import-file" accept="application/json,.json,text/plain" hidden data-act="import-file">' +
+      '<button class="btn btn-ghost btn-sm" data-act="import-paste" style="align-self:flex-start;margin-top:6px">Вставити текст копії</button></section>';
+    h += '<section class="card"><h3>Групи</h3>' + (s.groups.length ? '<div class="opt-list" style="display:flex;flex-direction:column;gap:8px">' + s.groups.slice().sort((a, b) => C.cmpStr(a.name, b.name)).map(g => {
+      const n = s.items.filter(i => i.groupId === g.id && i.state === 'stock').length;
+      return '<button class="btn" data-act="group-edit" data-gid="' + g.id + '" style="justify-content:space-between"><span>' + esc(g.name) + '</span><span class="muted small">на складі ' + n + '</span></button>';
+    }).join('') + '</div>' : '<p>Групи з’являться після першого прийому.</p>') + '</section>';
+    h += '<section class="card"><h3>Тема</h3><div class="seg">' + [['dark', 'Темна'], ['light', 'Світла'], ['system', 'Як у системі']].map(([k, t]) => '<button class="' + ((st.theme || 'dark') === k ? 'on' : '') + '" data-act="theme" data-k="' + k + '">' + t + '</button>').join('') + '</div></section>';
+    h += '<section class="card"><h3>Зберігання</h3><dl class="kv" style="display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0"><dt class="muted">Де</dt><dd style="margin:0">' + esc(where) + '</dd><dt class="muted">На складі</dt><dd style="margin:0">' + s.items.filter(i => i.state === 'stock').length + '</dd><dt class="muted">Поїхало</dt><dd style="margin:0">' + s.items.filter(i => i.state === 'departed').length + '</dd>' +
+      (App.persisted != null ? '<dt class="muted">Захист від очищення</dt><dd style="margin:0">' + (App.persisted ? 'увімкнено' : 'браузер не підтвердив') + '</dd>' : '') + '</dl>' +
+      '<p class="small" style="margin-top:10px">Дані не надсилаються жодним сервісам. На iPhone встановіть застосунок на головний екран і регулярно зберігайте копію.</p></section>';
+    h += '<section class="card danger-card"><h3>Очистити всі дані</h3><p>Видаляє склад та історію на цьому пристрої. Спершу збережіть копію.</p><button class="btn btn-danger" data-act="wipe">Очистити все</button></section>';
+    h += '<p class="small muted" style="text-align:center">Мій склад · версія ' + esc(VERSION) + '</p>';
+    return h;
+  };
+
+  /* ================= аркуші, тост ================= */
+  function sheet(html, ctx) {
+    App.sheetGen++;
+    const root = $('#sheet-root');
+    root.innerHTML = '<div class="sheet-backdrop" data-act="sheet-close"></div><div class="sheet" role="dialog" aria-modal="true"><div class="sheet-grip"></div>' + html + '</div>';
+    root.hidden = false;
+    App.sheetCtx = ctx || {};
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSheet() {
+    const root = $('#sheet-root');
+    if (!root || root.hidden) return;
+    root.innerHTML = ''; root.hidden = true; App.sheetCtx = null;
+    document.body.style.overflow = '';
+  }
+  function confirmSheet(o) {
+    sheet('<h3>' + esc(o.title) + '</h3><p>' + esc(o.text) + '</p>' + (o.extra || '') +
+      '<div class="row-btns"><button class="btn" data-act="sheet-close">Скасувати</button><button class="btn ' + (o.danger ? 'btn-danger' : 'btn-primary') + '" data-act="sheet-ok">' + esc(o.ok || 'Підтвердити') + '</button></div>', { onOk: o.onOk });
+  }
+  function infoSheet(title, lines) {
+    sheet('<h3>' + esc(title) + '</h3><div class="list-text">' + lines.slice(0, 80).map(esc).join('<br>') + '</div><button class="btn btn-block" data-act="sheet-close">Зрозуміло</button>');
+  }
+  let toastT = null;
+  function toast(msg, o) {
+    o = o || {};
+    const el = $('#toast');
+    el.innerHTML = '<span>' + esc(msg) + '</span>' + (o.undo ? '<button data-act="undo">Скасувати</button>' : '');
+    el.className = 'toast show' + (o.kind ? ' ' + o.kind : '');
+    clearTimeout(toastT);
+    toastT = setTimeout(() => { el.className = 'toast'; }, o.undo ? 6000 : (o.kind === 'err' ? 4500 : 2600));
+  }
+
+  /* ================= копіювання, поширення, фото, копії ================= */
+  /** okMsg === false — без тосту про успіх (його покаже наступна дія) */
+  function copyText(text, okMsg) {
+    const done = () => { if (okMsg !== false) toast(okMsg || 'Скопійовано'); };
+    const fallback = () => {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;font-size:16px';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+      let ok = false; try { ok = document.execCommand('copy'); } catch (e) { /* */ }
+      ta.remove();
+      if (ok) done();
+      else sheet('<h3>Скопіюйте вручну</h3><p>Утримуйте текст → «Вибрати все» → «Скопіювати».</p><textarea class="textarea" readonly>' + esc(text) + '</textarea><button class="btn btn-block" data-act="sheet-close">Готово</button>');
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, fallback); return; }
+    } catch (e) { /* */ }
+    fallback();
+  }
+  function shareText(text) {
+    if (!IS_ARTIFACT && navigator.share) {
+      navigator.share({ text }).catch(e => { if (e && e.name !== 'AbortError') copyText(text); });
+      return;
+    }
+    copyText(text, 'Поширення недоступне тут — текст скопійовано');
+  }
+  function clearPhotos() {
+    for (const p of App.photos) { try { URL.revokeObjectURL(p.url); } catch (e) { /* */ } }
+    App.photos = [];
+  }
+  function sharePhotos(text) {
+    const files = App.photos.map(p => p.file);
+    const data = { files, text };
+    if (!IS_ARTIFACT && navigator.share && navigator.canShare && navigator.canShare({ files })) {
+      // у деяких месенджерах текст разом із фото губиться, тому кладемо його і в буфер
+      copyText(text, false);
+      navigator.share(navigator.canShare(data) ? data : { files }).catch(e => { if (e && e.name !== 'AbortError') toast('Не вдалося поділитися фото', { kind: 'err' }); });
+      return;
+    }
+    copyText(text, 'Фото тут не надіслати — текст скопійовано, фото додайте в месенджері');
+  }
+  function stamp() { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes()); }
+  function markBackup() { S().settings.lastBackupAt = new Date().toISOString(); persist(); render(); }
+  function exportBackup() {
+    const data = JSON.stringify(C.exportData(S()), null, 1);
+    const name = 'miy-sklad-' + stamp() + '.json';
+    const showText = () => sheet('<h3>Текст резервної копії</h3><p>Скопіюйте і збережіть у Нотатках або в файлі. Відновити можна через «Вставити текст копії».</p><textarea class="textarea" readonly>' + esc(data) + '</textarea>' +
+      '<div class="row-btns"><button class="btn btn-primary" data-act="copy-backup">' + ic('copy') + 'Скопіювати</button><button class="btn" data-act="sheet-close">Закрити</button></div>', { data });
+    if (IS_ARTIFACT) { showText(); return; }
+    let file = null;
+    try { file = new File([data], name, { type: 'application/json' }); } catch (e) { /* */ }
+    if (file && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: name }).then(markBackup).catch(e => { if (e && e.name === 'AbortError') return; download(); });
+      return;
+    }
+    download();
+    function download() {
+      try {
+        const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+        const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        markBackup(); toast('Файл ' + name + ' збережено');
+      } catch (e) { showText(); }
+    }
+  }
+  function importText(text) {
+    let o;
+    try { o = JSON.parse(text); } catch (e) { toast('Це не схоже на файл резервної копії (JSON не читається)', { kind: 'err' }); return; }
+    const v = C.validateImport(o);
+    if (!v.ok) { infoSheet('Файл не можна відновити', v.errors); return; }
+    confirmSheet({
+      title: 'Відновити з копії?',
+      text: 'У копії: ' + pcs(v.stats.items) + ' (на складі ' + v.stats.stock + '), ' + grp(v.stats.groups) + '. Поточні дані буде замінено.',
+      extra: v.warnings.length ? '<p class="small warn-text">' + v.warnings.map(esc).join('<br>') + '</p>' : '',
+      ok: 'Замінити дані', danger: true,
+      onOk: () => {
+        App.undo.push({ before: JSON.stringify(S()), label: 'Відновлення з копії' });
+        App.state = v.state; App.ui.sel.clear();
+        persist(); applyTheme(); go('stock'); toast('Дані відновлено з копії', { undo: true });
+      }
+    });
+  }
+
+  /* ================= аркуш посилки ================= */
+  function itemSheet(id) {
+    const s = S(), ix = C.index(s), it = ix.items.get(id);
+    if (!it) return;
+    const groups = s.groups.slice().sort((a, b) => C.cmpStr(a.name, b.name));
+    let h = '<h3>' + esc(C.itemLabel(ix, it)) + '</h3>';
+    h += '<div class="grid-2e"><label class="field"><span>Номер</span><input class="input" id="e-num" inputmode="numeric" value="' + (it.number != null ? it.number : '') + '"></label>' +
+      '<label class="field"><span>Дата пакування</span><input class="input" type="date" id="e-date" value="' + esc(it.date) + '"></label></div>';
+    h += '<label class="field"><span>Що це</span><input class="input" id="e-desc" value="' + esc(it.desc) + '" placeholder="вода, дрони…"></label>';
+    h += '<label class="field"><span>Група</span><select class="select" id="e-group">' + groups.map(g => '<option value="' + g.id + '"' + (g.id === it.groupId ? ' selected' : '') + '>' + esc(g.name) + '</option>').join('') + '</select></label>';
+    h += '<label class="check-row"><input type="checkbox" id="e-prob"' + (it.problem ? ' checked' : '') + '><span>Проблемна ⚠</span></label>';
+    h += '<label class="field"><span>Примітка</span><input class="input" id="e-note" value="' + esc(it.note) + '" placeholder="пошкоджена упаковка…"></label>';
+    h += '<div class="row-btns"><button class="btn btn-danger" data-act="it-delete" data-id="' + it.id + '">Видалити</button><button class="btn btn-primary" data-act="sheet-ok">Зберегти</button></div>';
+    sheet(h, {
+      onOk: () => {
+        const raw = $('#e-num').value.trim();
+        const n = raw === '' ? null : parseInt(raw, 10);
+        if (raw !== '' && !(n >= 0 && /^\d+$/.test(raw))) { toast('Номер має бути числом', { kind: 'err' }); return false; }
+        const f = { number: n, date: $('#e-date').value || it.date, desc: $('#e-desc').value, groupId: $('#e-group').value, problem: $('#e-prob').checked, note: $('#e-note').value };
+        const r = op('Змінено: ' + C.itemLabel(ix, it), st => C.editItem(st, st.items.find(x => x.id === id), f));
+        if (r && r.ok === false) return false;
+      }
+    });
+  }
+
+  /* ================= дії ================= */
+  const A = {};
+  A['tab'] = el => go(el.dataset.tab);
+  A['back'] = () => back();
+  A['go-prefs'] = () => go('prefs', {}, { push: true });
+  A['sheet-close'] = () => closeSheet();
+  A['sheet-ok'] = () => {
+    const f = App.sheetCtx && App.sheetCtx.onOk; const gen = App.sheetGen;
+    if (!f) { closeSheet(); return; }
+    const r = f();
+    if (r !== false && App.sheetGen === gen) closeSheet();
+  };
+  A['undo'] = () => { $('#toast').className = 'toast'; doUndo(); };
+  A['sw-update'] = () => { if (App.swWaiting) App.swWaiting.postMessage({ type: 'SKIP_WAITING' }); };
+
+  // склад: вибір того, що їде
+  function setSel(ids, on) { const s = App.ui.sel; for (const id of ids) { if (on) s.add(id); else s.delete(id); } Store.saveUi(); render(); }
+  A['pc'] = el => { const id = el.dataset.id; setSel([id], !App.ui.sel.has(id)); };
+  A['sel-group'] = el => {
+    const ix = C.index(S()), toks = C.tokens(App.ui.q);
+    const ids = S().items.filter(it => it.state === 'stock' && it.groupId === el.dataset.gid && C.matchItem(ix, it, toks)).map(it => it.id);
+    setSel(ids, !ids.every(id => App.ui.sel.has(id)));
+  };
+  A['sel-day'] = el => {
+    const ix = C.index(S()), toks = C.tokens(App.ui.q);
+    const ids = S().items.filter(it => it.state === 'stock' && it.groupId === el.dataset.gid && it.date === el.dataset.day && C.matchItem(ix, it, toks)).map(it => it.id);
+    setSel(ids, !ids.every(id => App.ui.sel.has(id)));
+  };
+  A['sel-clear'] = () => { App.ui.sel.clear(); Store.saveUi(); render(); };
+  A['go-ship'] = () => go('ship', {}, { push: true });
+  A['it-delete'] = el => {
+    const id = el.dataset.id, ix = C.index(S()), it = ix.items.get(id);
+    confirmSheet({ title: 'Видалити ' + C.itemLabel(ix, it) + '?', text: 'Посилка зникне зі складу та з тексту прийому.', ok: 'Видалити', danger: true,
+      onOk: () => { App.ui.sel.delete(id); op('Видалено: ' + C.itemLabel(ix, it), st => C.deleteItem(st, st.items.find(x => x.id === id))); } });
+  };
+
+  // загрузка
+  A['ship-copy'] = () => copyText(C.shipText(S(), selItems()), 'Список скопійовано');
+  A['ship-share'] = () => shareText(C.shipText(S(), selItems()));
+  A['ship-go'] = () => {
+    const items = selItems(); if (!items.length) return;
+    copyText(C.shipText(S(), items), false);
+    const ids = items.map(it => it.id);
+    const r = op('Загрузка: ' + pcs(ids.length), st => C.ship(st, ids, today()), { msg: res => 'Списано ' + pcs(res.event.count) + ' · список скопійовано' });
+    if (!r || r.ok === false) return;
+    App.ui.sel.clear(); Store.saveUi();
+    App.stack = [{ name: 'stock', p: {} }]; App.route = { name: 'event', p: { id: r.event.id } };
+    render(); window.scrollTo(0, 0);
+  };
+
+  // прийом (підвоз)
+  function focusNum() { const e = $('#d-num'); if (e) { e.focus(); e.scrollIntoView({ block: 'center' }); } }
+  function dRender() { Store.saveUi(); render(); }
+  function dOpen(g) {
+    const d = D();
+    if (!d.groups.some(x => gk(x) === gk(g))) d.groups.push(g);
+    d.active = d.groups.find(x => gk(x) === gk(g)); d.num = ''; d.prob = false;
+    dRender(); focusNum();
+  }
+  function dAdd(descOverride) {
+    const d = D(), g = d.active; if (!g) return;
+    const ni = $('#d-num'), di = $('#d-desc');
+    const raw = (ni ? ni.value : d.num).trim();
+    const desc = C.clean(descOverride != null ? descOverride : (di ? di.value : d.desc[gk(g)] || ''));
+    if (!raw && !desc) { toast('Наберіть номер або напишіть, що це', { kind: 'err' }); focusNum(); return; }
+    if (raw && !/^\d{1,5}$/.test(raw)) { toast('Номер — лише цифри', { kind: 'err' }); focusNum(); return; }
+    const r = { id: C.uid('d'), g, number: raw ? +raw : null, desc, problem: d.prob };
+    d.rows.push(r); d.last = r.id; d.num = ''; d.prob = false;
+    // для посилок вміст лишається (наступна часто така сама); для товару без номера — очищаємо
+    d.desc[gk(g)] = r.number != null ? desc : (d.desc[gk(g)] === desc ? '' : d.desc[gk(g)] || '');
+    const f = rowFlags(r);
+    if (f.length) { toast(g + ' №' + r.number + ': ' + f.join(', '), { kind: 'err' }); if (navigator.vibrate) navigator.vibrate([60, 40, 60]); }
+    else if (navigator.vibrate) navigator.vibrate(20);
+    dRender(); focusNum();
+  }
+  A['in-mode'] = el => { App.ui.inMode = el.dataset.k; closeSheet(); Store.saveUi(); render(); };
+  A['in-meta'] = () => {
+    const u = App.ui;
+    const titles = [...new Set(S().events.filter(e => e.kind === 'in' && e.title).sort((a, b) => (b.ts || '').localeCompare(a.ts || '')).map(e => e.title))].slice(0, 4);
+    sheet('<h3>Підвоз</h3><label class="field"><span>Дата підвозу</span><input class="input" type="date" id="im-date" value="' + esc(u.inDate || today()) + '"></label>' +
+      '<label class="field"><span>Маршрут</span><input class="input" id="im-title" autocomplete="off" placeholder="РЗ -> Федекс" value="' + esc(u.inTitle) + '"></label>' +
+      (titles.length ? '<div class="qchips">' + titles.map(t => '<button class="qchip sm" data-act="im-pick" data-t="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>' : '') +
+      '<div class="row-btns"><button class="btn" data-act="sheet-close">Скасувати</button><button class="btn btn-primary" data-act="sheet-ok">Готово</button></div>', {
+      onOk: () => { u.inDate = $('#im-date').value || today(); u.inTitle = $('#im-title').value.trim(); setTimeout(dRender, 0); }
+    });
+  };
+  A['im-pick'] = el => { $('#im-title').value = el.dataset.t; };
+  A['d-open'] = el => dOpen(el.dataset.g);
+  A['d-addg'] = el => dOpen(el.dataset.g);
+  A['d-lastg'] = () => { const d = D(); for (const g of lastArrivalGroups()) if (!d.groups.some(x => gk(x) === gk(g))) d.groups.push(g); dRender(); };
+  A['d-newg'] = () => {
+    sheet('<h3>Нова позиція</h3><input class="input" id="dg-name" autocomplete="off" placeholder="Наприклад, Манчестер"><div class="row-btns"><button class="btn" data-act="sheet-close">Скасувати</button><button class="btn btn-primary" data-act="sheet-ok">Додати</button></div>', {
+      onOk: () => { const t = $('#dg-name').value.trim(); if (!t) { toast('Вкажіть назву', { kind: 'err' }); return false; } const g = C.findGroup(S(), t); setTimeout(() => dOpen(g ? g.name : C.cap(t)), 0); }
+    });
+    setTimeout(() => { const e = $('#dg-name'); if (e) e.focus(); }, 50);
+  };
+  A['d-close'] = () => { D().active = null; dRender(); };
+  A['d-prob'] = () => { const d = D(), ni = $('#d-num'); if (ni) d.num = ni.value; d.prob = !d.prob; dRender(); focusNum(); };
+  A['d-desc'] = el => {
+    const d = D(), ni = $('#d-num');
+    if (ni && ni.value.trim()) { dAdd(el.dataset.desc); return; }
+    d.desc[gk(d.active)] = el.dataset.desc; dRender(); focusNum();
+  };
+  A['d-add'] = () => dAdd();
+  A['d-row'] = el => {
+    const d = D(), r = d.rows.find(x => x.id === el.dataset.id); if (!r) return;
+    sheet('<h3>' + esc(r.g) + (r.number != null ? ' №' + r.number : '') + '</h3>' +
+      '<div class="grid-2e"><label class="field"><span>Номер</span><input class="input" id="dr-n" inputmode="numeric" value="' + (r.number != null ? r.number : '') + '" placeholder="без номера"></label>' +
+      '<label class="field"><span>Позиція</span><select class="select" id="dr-g">' + d.groups.map(g => '<option' + (gk(g) === gk(r.g) ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select></label></div>' +
+      '<label class="field"><span>Що всередині</span><input class="input" id="dr-desc" value="' + esc(r.desc) + '"></label>' +
+      '<label class="check-row"><input type="checkbox" id="dr-prob"' + (r.problem ? ' checked' : '') + '><span>Проблемна ⚠</span></label>' +
+      '<div class="row-btns"><button class="btn btn-danger" data-act="d-row-del" data-id="' + r.id + '">Прибрати</button><button class="btn btn-primary" data-act="sheet-ok">Зберегти</button></div>', {
+      onOk: () => {
+        const raw = $('#dr-n').value.trim(), desc = C.clean($('#dr-desc').value);
+        if (raw && !/^\d{1,5}$/.test(raw)) { toast('Номер — лише цифри', { kind: 'err' }); return false; }
+        if (!raw && !desc) { toast('Потрібен номер або опис', { kind: 'err' }); return false; }
+        Object.assign(r, { number: raw ? +raw : null, g: $('#dr-g').value, desc, problem: $('#dr-prob').checked });
+        setTimeout(dRender, 0);
+      }
+    });
+  };
+  A['d-row-del'] = el => { const d = D(); d.rows = d.rows.filter(x => x.id !== el.dataset.id); closeSheet(); dRender(); };
+  A['d-done'] = () => { if (D().rows.length) { D().active = null; go('inrev', {}, { push: true }); } };
+  function afterArrival(ev) {
+    copyText(C.arrivalText(S(), ev.id), false);
+    App.stack = [{ name: 'intake', p: {} }]; App.route = { name: 'event', p: { id: ev.id } };
+    render(); window.scrollTo(0, 0);
+  }
+  A['d-save'] = () => {
+    const u = App.ui, parsed = { blocks: draftBlocks() };
+    const r = op('Підвоз', st => C.applyArrival(st, parsed, { date: u.inDate || today(), title: u.inTitle, allowDup: true }), { msg: res => 'На склад: ' + pcs(res.event.count) + ' · текст скопійовано' });
+    if (!r || r.ok === false) return;
+    App.dd = newDraft(); Object.assign(u, { inTitle: '', inDate: today() }); Store.saveUi();
+    afterArrival(r.event);
+  };
+  A['in-check'] = () => {
+    if (!App.ui.inText.trim()) { toast('Вставте список', { kind: 'err' }); return; }
+    App.ui.inShow = true; render();
+    setTimeout(() => { const c = $('#in-prev'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30);
+  };
+  A['in-edit'] = () => { App.ui.inShow = false; render(); setTimeout(() => { const t = $('#in-text'); if (t) t.focus(); }, 30); };
+  A['in-prob'] = el => { const k = +el.dataset.line, p = App.ui.inProb; if (p.has(k)) p.delete(k); else p.add(k); render(); };
+  A['in-allowdup'] = el => { App.ui.inAllowDup = el.checked; render(); };
+  A['in-save'] = () => {
+    const u = App.ui, { parsed } = inParsed(), hd = parsed.header || {};
+    const r = op('Підвоз', st => C.applyArrival(st, parsed, { allowDup: u.inAllowDup, date: hd.date || u.inDate || today(), title: hd.title || u.inTitle }), { msg: res => 'На склад: ' + pcs(res.event.count) + ' · текст скопійовано' });
+    if (!r || r.ok === false) return;
+    Object.assign(u, { inText: '', inShow: false, inAllowDup: false, inDate: today(), inTitle: '', inMode: 'cards' }); u.inProb.clear(); Store.saveUi();
+    afterArrival(r.event);
+  };
+
+  // історія
+  A['event'] = el => go('event', { id: el.dataset.id }, { push: true });
+  const curEvent = () => C.index(S()).events.get(App.route.p.id);
+  A['ev-copy'] = () => { const ev = curEvent(); if (ev) copyText(eventText(ev), 'Текст скопійовано'); };
+  A['ev-share'] = () => { const ev = curEvent(); if (ev) shareText(eventText(ev)); };
+  A['ph-del'] = el => { const p = App.photos.splice(+el.dataset.k, 1)[0]; if (p) URL.revokeObjectURL(p.url); render(); };
+  A['ph-send'] = () => { const ev = curEvent(); if (ev) sharePhotos(eventText(ev)); };
+  A['ev-cancel'] = () => {
+    const ev = curEvent(); if (!ev) return;
+    confirmSheet({ title: 'Повернути на склад?', text: pcs(ev.count) + ' знову будуть у залишку, а цей запис загрузки зникне.', ok: 'Повернути', danger: true,
+      onOk: () => { const r = op('Загрузку повернуто на склад', st => C.cancelShipment(st, st.events.find(e => e.id === ev.id))); if (r && r.ok !== false) { App.stack = []; App.route = { name: 'stock', p: {} }; render(); } } });
+  };
+  A['ev-del'] = () => {
+    const ev = curEvent(); if (!ev) return;
+    confirmSheet({ title: 'Видалити прийом?', text: pcs(ev.count) + ' зникнуть зі складу.', ok: 'Видалити', danger: true,
+      onOk: () => { const r = op('Видалено прийом', st => C.deleteArrival(st, st.events.find(e => e.id === ev.id))); if (r && r.ok !== false) { App.stack = []; App.route = { name: 'hist', p: {} }; render(); } } });
+  };
+
+  // налаштування
+  A['backup'] = () => exportBackup();
+  A['copy-backup'] = () => copyText(App.sheetCtx.data, 'Копію скопійовано');
+  A['theme'] = el => { S().settings.theme = el.dataset.k; persist(); applyTheme(); render(); };
+  A['import-paste'] = () => {
+    sheet('<h3>Вставити текст копії</h3><textarea class="textarea" id="imp-text" placeholder="{&quot;app&quot;:&quot;miy-sklad&quot;, …}"></textarea><div class="row-btns"><button class="btn" data-act="sheet-close">Скасувати</button><button class="btn btn-primary" data-act="sheet-ok">Перевірити</button></div>', {
+      onOk: () => { const t = $('#imp-text').value; setTimeout(() => importText(t), 0); }
+    });
+  };
+  A['group-edit'] = el => {
+    const g = C.index(S()).groups.get(el.dataset.gid); const n = S().items.filter(i => i.groupId === g.id).length;
+    sheet('<h3>Група «' + esc(g.name) + '»</h3><label class="field"><span>Назва</span><input class="input" id="ge-name" value="' + esc(g.name) + '"></label><p class="small">' + pcs(n) + ' за весь час. Назва оновиться всюди.</p>' +
+      '<div class="row-btns">' + (n ? '' : '<button class="btn btn-danger" data-act="group-del" data-gid="' + g.id + '">Видалити</button>') + '<button class="btn btn-primary" data-act="sheet-ok">Зберегти</button></div>', {
+      onOk: () => { const name = $('#ge-name').value; op('Перейменовано групу', st => C.renameGroup(st, st.groups.find(x => x.id === g.id), name)); }
+    });
+  };
+  A['group-del'] = el => { const gid = el.dataset.gid; closeSheet(); op('Видалено групу', st => C.deleteGroup(st, st.groups.find(x => x.id === gid))); };
+  A['wipe'] = () => confirmSheet({ title: 'Очистити всі дані?', text: 'Буде видалено ' + pcs(S().items.length) + ' та всю історію на цьому пристрої. Скасувати можна лише одразу після очищення.', ok: 'Очистити все', danger: true,
+    onOk: () => {
+      App.undo.push({ before: JSON.stringify(S()), label: 'Очищення даних' });
+      const theme = S().settings.theme;
+      App.state = C.emptyState(); App.state.settings.theme = theme; App.ui.sel.clear(); Store.saveUi();
+      persist(); go('stock'); toast('Дані очищено', { undo: true });
+    } });
+
+  /* ================= введення ================= */
+  function renderPart(sel, html) { const el = $(sel); if (el) el.innerHTML = html; }
+  const INPUT = {
+    'stock-q': v => { App.ui.q = v; renderPart('#stock-list', stockList()); },
+    'in-text': v => {
+      const u = App.ui; u.inText = v; Store.saveUi();
+      // текст змінився — старий перегляд і позначки ⚠ уже не відповідають рядкам
+      if (u.inShow || u.inProb.size) {
+        u.inShow = false; u.inProb.clear(); u.inAllowDup = false;
+        renderPart('#in-prev', '<button class="btn btn-primary btn-block" data-act="in-check">Перевірити</button>');
+        $('#view').classList.remove('has-bar'); document.body.classList.remove('with-bar');
+      }
+    },
+    'in-date': v => { if (v) { App.ui.inDate = v; Store.saveUi(); render(); } },
+    'in-title': v => { App.ui.inTitle = v; Store.saveUi(); },
+    'd-num': v => { D().num = v; Store.saveUi(); },
+    'd-desc': v => { const d = D(); if (d.active) d.desc[gk(d.active)] = v; Store.saveUi(); }
+  };
+
+  // довге натискання на посилку відкриває її картку
+  const LP = { t: null, fired: false, x: 0, y: 0 };
+  function lpStart(e) {
+    const el = e.target.closest('.pc'); if (!el) return;
+    LP.fired = false; LP.x = e.clientX; LP.y = e.clientY;
+    clearTimeout(LP.t);
+    LP.t = setTimeout(() => { LP.fired = true; if (navigator.vibrate) navigator.vibrate(12); itemSheet(el.dataset.id); }, 480);
+  }
+  function lpMove(e) { if (LP.t && (Math.abs(e.clientX - LP.x) > 10 || Math.abs(e.clientY - LP.y) > 10)) { clearTimeout(LP.t); LP.t = null; } }
+  function lpEnd() { clearTimeout(LP.t); LP.t = null; }
+
+  function onClick(e) {
+    const el = e.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    const act = el.dataset.act;
+    if (act === 'pc' && LP.fired) { LP.fired = false; e.preventDefault(); return; }
+    if (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'file')) return; // ці обробляються в change
+    const f = A[act];
+    if (f) { e.preventDefault(); f(el, e); }
+  }
+  function onChange(e) {
+    const el = e.target;
+    if (el.dataset.act === 'import-file') {
+      const file = el.files && el.files[0]; if (!file) return;
+      const rd = new FileReader();
+      rd.onload = () => { importText(String(rd.result)); el.value = ''; };
+      rd.onerror = () => toast('Не вдалося прочитати файл', { kind: 'err' });
+      rd.readAsText(file);
+      return;
+    }
+    if (el.dataset.act === 'photos') {
+      for (const f of el.files || []) App.photos.push({ file: f, url: URL.createObjectURL(f) });
+      el.value = ''; render();
+      return;
+    }
+    if (el.type === 'checkbox' && el.dataset.act && A[el.dataset.act]) { A[el.dataset.act](el, e); return; }
+    if (el.type === 'date' && el.dataset.in && INPUT[el.dataset.in]) INPUT[el.dataset.in](el.value, el);
+  }
+  function onInput(e) {
+    const el = e.target, k = el.dataset && el.dataset.in;
+    if (k && INPUT[k] && el.type !== 'date') INPUT[k](el.value, el);
+  }
+
+  /* ================= запуск ================= */
+  function initSW() {
+    if (IS_ARTIFACT || !('serviceWorker' in navigator)) return;
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      const watch = w => { if (!w) return; w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) { App.swWaiting = w; if (App.route.name === 'stock') render(); } }); };
+      if (reg.waiting && navigator.serviceWorker.controller) { App.swWaiting = reg.waiting; render(); }
+      reg.addEventListener('updatefound', () => watch(reg.installing));
+      setInterval(() => reg.update().catch(() => { /* */ }), 3600e3);
+    }).catch(() => { /* */ });
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading) return; reloading = true; Store.flush().then(() => location.reload()); });
+  }
+  async function boot() {
+    document.addEventListener('click', onClick);
+    document.addEventListener('change', onChange);
+    document.addEventListener('input', onInput);
+    document.addEventListener('pointerdown', lpStart, { passive: true });
+    document.addEventListener('pointermove', lpMove, { passive: true });
+    document.addEventListener('pointerup', lpEnd, { passive: true });
+    document.addEventListener('pointercancel', lpEnd, { passive: true });
+    document.addEventListener('mousedown', e => { if (e.target.closest('.gsec.open [data-act]') && document.activeElement && document.activeElement.id && /^d-/.test(document.activeElement.id)) e.preventDefault(); });
+    document.addEventListener('contextmenu', e => { if (e.target.closest('.pc')) e.preventDefault(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input[type="search"]')) e.target.blur();
+      if (e.key === 'Enter' && (e.target.id === 'd-num' || e.target.id === 'd-desc')) { e.preventDefault(); dAdd(); } if (e.key === 'Escape') closeSheet(); });
+    document.addEventListener('focusin', e => { if (e.target.matches('input:not([type=checkbox]):not([type=file]), textarea, select')) document.body.classList.add('kb'); });
+    document.addEventListener('focusout', () => setTimeout(() => { const a = document.activeElement; if (!a || !a.matches('input, textarea, select')) document.body.classList.remove('kb'); }, 80));
+    window.addEventListener('scroll', () => { const t = $('#topbar'); if (t) t.classList.toggle('scrolled', window.scrollY > 4); }, { passive: true });
+    const flush = () => { if (Store.t) Store.flush(); };
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+    window.addEventListener('pagehide', flush);
+    if (window.matchMedia) { try { matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyTheme); } catch (e) { /* */ } }
+
+    await Store.init();
+    let loaded = null;
+    try { loaded = await Store.load(); } catch (e) { /* */ }
+    if (loaded) {
+      const wasV1 = loaded.version !== 2;
+      App.state = C.migrate(loaded);
+      if (wasV1 && (loaded.items || []).length) persist();
+    }
+    try {
+      const ui = await Store.loadUi();
+      if (ui && ui.v === 2) {
+        Object.assign(App.ui, { inText: ui.inText || '', inDate: ui.inDate || today(), inTitle: ui.inTitle || '', inMode: ui.inMode === 'text' ? 'text' : 'cards', sel: new Set(ui.sel || []) });
+        if (ui.dd && Array.isArray(ui.dd.rows)) App.dd = Object.assign({ groups: [], rows: [], active: null, num: '', desc: {}, prob: false, last: null }, ui.dd);
+      }
+    } catch (e) { /* */ }
+    if (navigator.storage && navigator.storage.persisted) navigator.storage.persisted().then(v => { App.persisted = v; }).catch(() => { /* */ });
+    applyTheme();
+    render();
+    initSW();
+  }
+  window.__MS = { App, Store, C, render, go };
+  boot();
+})();
+</script>
+</body>
+</html>
