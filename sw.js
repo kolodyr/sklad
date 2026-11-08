@@ -1,6 +1,6 @@
 /* «Мій склад» — service worker: офлайн-робота й керовані оновлення.
    Дані складу живуть в IndexedDB і не залежать від цього кешу. */
-const VERSION = '2026.11.05-2100';
+const VERSION = '2026.11.08-1900';
 const CACHE = 'miy-sklad-' + VERSION;
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
