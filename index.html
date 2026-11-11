@@ -215,7 +215,16 @@ input[type="date"].input::-webkit-calendar-picker-indicator { margin-left: 0; pa
 /* ---------- склад ---------- */
 .totals { display: flex; align-items: baseline; gap: 10px; }
 .totals b { font: 700 40px/1 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
-.totals span { color: var(--muted); font-size: 15px; }
+.totals span { color: var(--muted); font-size: 15px; flex: 1; min-width: 0; }
+.totals .btn { align-self: center; flex: none; }
+.plist { display: flex; flex-direction: column; gap: 10px; }
+.prow { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 15px; }
+.prow > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.stp { display: flex; align-items: center; gap: 6px; flex: none; }
+.stp b { min-width: 26px; text-align: center; font: 700 20px var(--font-display); font-variant-numeric: tabular-nums; }
+.stp small { color: var(--muted); font-size: 13px; margin-right: 2px; }
+.stp .icon-btn { border: 1px solid var(--line-2); font-size: 22px; font-weight: 600; }
+.stp .icon-btn:disabled { opacity: .35; }
 .gsec { display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 14px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); }
 .gsec-head { display: flex; align-items: center; gap: 8px; }
 .gsec-head h3 { flex: 1; min-width: 0; margin: 0; font: 700 19px/1.2 var(--font-display); overflow-wrap: anywhere; }
@@ -245,7 +254,9 @@ input[type="date"].input::-webkit-calendar-picker-indicator { margin-left: 0; pa
 .pc.sel.dup b, .pc.sel.dup::before { color: var(--accent-ink); }
 .dnote { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: -4px; font-size: 13px; font-weight: 600; color: var(--warn); }
 .dnote .bad { color: var(--danger); }
-.pc.nonum b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.pc.nonum { grid-column: span 2; }
+.pc.nonum b { font-size: 14px; line-height: 1.2; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.qchip.unit { border-style: dashed; }
 
 /* нижня панель дій над вкладками */
 .action-bar {
@@ -384,7 +395,7 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
 <div id="sheet-root" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <noscript><div class="empty">Для роботи «Мого складу» потрібен JavaScript.</div></noscript>
-<script>window.__MS_VERSION__ = "2026.11.08-1900";</script>
+<script>window.__MS_VERSION__ = "2026.11.10-1500";</script>
 <script>
 /* «Мій склад» — ядро обліку. Чиста логіка без DOM.
    Посилка = позиція (група) + дата пакування + номер, як на ярлику «Манчестер 4.11/1 вода».
@@ -414,10 +425,10 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
 
   /* ---------- стан ---------- */
   function emptyState() {
-    return { app: 'miy-sklad', version: 2, groups: [], items: [], events: [], settings: { lastBackupAt: null, theme: 'dark' } };
+    return { app: 'miy-sklad', version: 2, groups: [], items: [], events: [], settings: { lastBackupAt: null, theme: 'dark', restTitle: '', revTitle: '' } };
   }
   function fixItem(it, now) {
-    return {
+    const o = {
       id: it.id, groupId: it.groupId,
       number: Number.isInteger(it.number) ? it.number : null,
       desc: clean(it.desc), date: String(it.date || todayStr()).slice(0, 10),
@@ -426,6 +437,9 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
       arrivalId: it.arrivalId || null, shipmentId: it.shipmentId || null,
       createdAt: it.createdAt || now, updatedAt: it.updatedAt || now
     };
+    if (it.desc0) o.desc0 = clean(it.desc0);   // опис на момент прийому (до часткової загрузки)
+    if (it.splitOf) o.splitOf = it.splitOf;     // частина товару, що поїхала окремо
+    return o;
   }
   /** Приводить будь-яку збережену версію (зокрема v1 з місіями) до поточної моделі */
   function migrate(s) {
@@ -435,6 +449,7 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
     const st = s.settings || {};
     if (st.theme) out.settings.theme = st.theme;
     if (st.lastBackupAt) out.settings.lastBackupAt = st.lastBackupAt;
+    out.settings.restTitle = clean(st.restTitle); out.settings.revTitle = clean(st.revTitle);
     out.groups = (Array.isArray(s.groups) ? s.groups : []).filter(g => g && g.id && clean(g.name)).map(g => ({ id: g.id, name: clean(g.name) }));
     const items = Array.isArray(s.items) ? s.items : [];
     if (s.version === 2) {
@@ -572,10 +587,20 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
       if (bold && !/^\d/.test(bold[1])) { first = false; cur = block(bold[1]); return; }
       const t = t0.replace(/^[*_]+\s*(\d[^*_]*?)\s*[*_]+$/, '$1').replace(/^[•*·▪◦]\s*/, '').replace(/^[-–—]\s+/, '').replace(/^№\s*/, '');
       const isFirst = first; first = false;
+      // «Залишок на складі», «Ревізія» — заголовок власного списку, не позиція
+      if (isFirst && /^(залишок|ревізія)(\s|$)/i.test(t)) return;
+      // відома позиція, назва якої починається з цифри («8 дшр»)
+      if (blank && st && /^\d/.test(t) && findGroup(st, t.replace(/[:\-–—]+\s*$/, ''))) { cur = block(t.replace(/[:\-–—]+\s*$/, '')); return; }
       let m = t.match(DATE_ONLY);
       if (m) {
         const d = mkDate(+m[1], +m[2], m[3], ref);
         if (d) { if (isFirst) header = { date: d, title: '' }; date = d; cur = null; return; }
+      }
+      // «7.11 - 16, 12» — дата пакування і номери, як у списку залишку чи загрузки
+      m = t.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}|\d{2}))?\s*[-–—:]\s*(\d[\d\s,;–—-]*)$/);
+      if (m && cur) {
+        const d = mkDate(+m[1], +m[2], m[3], ref), nums = parseNumList(m[4]);
+        if (d && nums && nums.length) { nums.forEach(n => push(i, n, '', d)); return; }
       }
       if (isFirst && !PACK.test(t) && (m = t.match(HEAD))) {
         const d = mkDate(+m[1], +m[2], m[3], ref);
@@ -593,6 +618,15 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
         const nums = parseNumList(t);
         if (nums) { nums.forEach(n => push(i, n, '')); return; }
       }
+      // «8, 9 - ящик» — кілька номерів з однаковим вмістом
+      m = t.match(/^(\d{1,5}(?:\s*[,;]\s*\d{1,5})+)\s*[-–—:]\s*(\D.*)$/);
+      if (m) { const nums = parseNumList(m[1]); if (nums) { nums.forEach(n => push(i, n, m[2])); return; } }
+      // «АКБ - 15, 16, 17» — вміст і номери (ревізія); «Вінтерс: 39, 46» — позиція і номери
+      m = t.match(/^(\D[^\d]*?)\s*[-–—:]\s*(\d{1,5}(?:\s*[,;]\s*\d{1,5})+)\s*[,;]?$/);
+      if (m) {
+        const nums = parseNumList(m[2]), isG = !cur || (st && findGroup(st, m[1]));
+        if (nums) { if (isG) cur = block(m[1]); nums.forEach(n => push(i, n, isG ? '' : m[1])); return; }
+      }
       m = t.match(PARCEL);
       if (m && /\d/.test(t[0])) {
         const a = +m[1], b = m[2] != null ? +m[2] : a;
@@ -609,7 +643,7 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
       // рядок без номера: нова позиція (після порожнього рядка, з двокрапкою або відома назва) чи товар без номера («Бк - 4 цинка»)
       const isGroup = !cur || blank || /:\s*$/.test(t) || (st && findGroup(st, t.replace(/[:\-–—]+\s*$/, '')));
       if (isGroup) cur = block(t.replace(/[:\-–—]+\s*$/, ''));
-      else push(i, null, t);
+      else t.split(/\s*,\s*/).filter(Boolean).forEach(x => push(i, null, x)); // «дрони, ящик, батки» — кілька товарів в одному рядку
     });
     for (const b of blocks) if (!b.rows.length) warnings.push('Позиція «' + b.name + '» без посилок');
     return { header, blocks: blocks.filter(b => b.rows.length), warnings, total: blocks.reduce((a, b) => a + b.rows.length, 0) };
@@ -681,34 +715,101 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
   }
   function arrivalText(s, evId) {
     const ix = index(s), ev = ix.events.get(evId);
-    return formatArrival(ev ? arrivalHead(ev.date, ev.title) : '', arrivalBlocks(ix, s.items.filter(it => it.arrivalId === evId)), ev && ev.date);
+    // товар, який потім поїхав частинами, у тексті прийому лишається таким, як приїхав
+    const items = s.items.filter(it => it.arrivalId === evId).map(it => it.desc0 ? Object.assign({}, it, { desc: it.desc0 }) : it);
+    return formatArrival(ev ? arrivalHead(ev.date, ev.title) : '', arrivalBlocks(ix, items), ev && ev.date);
   }
-  /** Посилки, що їдуть → «Група:\n3.11 - 1, 3, 4, 6» */
-  function shipText(s, items) {
-    const ix = index(s), by = new Map();
-    for (const it of items) {
-      if (!by.has(it.groupId)) by.set(it.groupId, []);
-      by.get(it.groupId).push(it);
-    }
-    const gids = groupOrder(s, [...by.keys()]);
-    return gids.map(gid => {
-      const days = new Map();
-      for (const it of by.get(gid).sort(cmpItem)) {
-        if (!days.has(it.date)) days.set(it.date, []);
-        days.get(it.date).push(it.number != null ? String(it.number) : it.desc);
-      }
-      return groupName(ix, gid) + ':\n' + [...days.entries()].map(([d, a]) => fmtDay(d) + ' - ' + a.join(', ')).join('\n');
+  function byGroup(s, items) {
+    const by = new Map();
+    for (const it of items) { if (!by.has(it.groupId)) by.set(it.groupId, []); by.get(it.groupId).push(it); }
+    return groupOrder(s, [...by.keys()]).map(gid => [gid, by.get(gid).slice().sort(cmpItem)]);
+  }
+  function byDay(items) {
+    const days = new Map();
+    for (const it of items) { if (!days.has(it.date)) days.set(it.date, []); days.get(it.date).push(it); }
+    return [...days.entries()];
+  }
+  /** Посилки, що їдуть → «09.11» + «Група:\n3.11 - 1, 3, 4, 6\nдрони, ящик, вода 5 паків» (товари без номера — одним рядком) */
+  function shipText(s, items, head) {
+    const ix = index(s);
+    const body = byGroup(s, items).map(([gid, its]) => {
+      const lines = byDay(its.filter(it => it.number != null)).map(([d, a]) => fmtDay(d) + ' - ' + a.map(it => it.number).join(', '));
+      const goods = its.filter(it => it.number == null).map(it => it.desc);
+      if (goods.length) lines.push(goods.join(', '));
+      return groupName(ix, gid) + ':\n' + lines.join('\n');
     }).join('\n\n');
+    return (head ? head + '\n' : '') + body;
+  }
+  /**
+   * Текст залишку. mode 'nums': «*Група*\n7.11 - 12, 16\nвода 4» — коротко, лише номери.
+   * mode 'desc' (ревізія): «*Група*\nбатки - 15, 16\nбк - 1, 2» — номери за вмістом.
+   */
+  function stockText(s, mode, title) {
+    const ix = index(s), parts = title ? [clean(title)] : [];
+    for (const [gid, its] of byGroup(s, s.items.filter(it => it.state === 'stock'))) {
+      const lines = [], days = byDay(its.filter(it => it.number != null));
+      for (const [d, arr] of days) {
+        if (mode !== 'desc') { lines.push(fmtDay(d) + ' - ' + arr.map(it => it.number).join(', ')); continue; }
+        if (days.length > 1) lines.push(fmtDay(d) + ':');
+        const kinds = new Map();
+        for (const it of arr) { const k = norm(it.desc); if (!kinds.has(k)) kinds.set(k, { name: it.desc || 'без опису', nums: [] }); kinds.get(k).nums.push(it.number); }
+        for (const k of kinds.values()) lines.push(k.name + ' - ' + k.nums.join(', '));
+      }
+      for (const it of its) if (it.number == null) lines.push(it.desc);
+      parts.push('*' + groupName(ix, gid) + '*\n' + lines.join('\n'));
+    }
+    return parts.join('\n\n');
+  }
+
+  /* ---------- товар без номера з кількістю: «вода - 10 паків» ---------- */
+  // одиниці, які відмінюємо: 1 пак, 2 паки, 5 паків
+  const UNITS = [['шт', 'шт', 'шт'], ['пак', 'паки', 'паків'], ['каністра', 'каністри', 'каністр'], ['ящик', 'ящики', 'ящиків'], ['мішок', 'мішки', 'мішків']];
+  const UNIT_ALIAS = { 'штука': 0, 'штуки': 0, 'штук': 0, 'пака': 1, 'каністру': 2, 'ящика': 3, 'мішка': 4 };
+  function unitForm(word, n) {
+    const w = norm(word).replace(/\.$/, '');
+    if (!w) return '';
+    let u = UNITS.find(f => f.includes(w));
+    if (!u && w in UNIT_ALIAS) u = UNITS[UNIT_ALIAS[w]];
+    if (!u) return clean(word);
+    const m10 = n % 10, m100 = n % 100;
+    return u[m10 === 1 && m100 !== 11 ? 0 : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 1 : 2)];
+  }
+  /** «вода - 10 паків» → {name:'вода', sep:' - ', qty:10, gap:' ', unit:'паків'}; без кількості в кінці → null */
+  function splitGoods(desc) {
+    const m = clean(desc).match(/^(.*?\p{L}[^,\/]*?)(\s*[-–—:]\s*|\s+)(\d{1,4})(\s*)([\p{L}]+\.?)?$/u);
+    return m ? { name: m[1], sep: m[2], qty: +m[3], gap: m[4], unit: m[5] || '' } : null;
+  }
+  function goodsDesc(name, qty, unit) {
+    name = clean(name);
+    return qty ? name + ' - ' + qty + (clean(unit) ? ' ' + unitForm(unit, qty) : '') : name;
+  }
+  function qtyOf(desc) { const g = splitGoods(desc); return g ? g.qty : null; }
+  function withQty(desc, n) { const g = splitGoods(desc); return g ? g.name + g.sep + n + (g.unit ? g.gap + unitForm(g.unit, n) : '') : desc; }
+  /** Чи це той самий товар (назва й одиниця) — тоді кількості додаються */
+  function sameGoods(a, b) {
+    const x = splitGoods(a) || { name: clean(a), unit: '' }, y = splitGoods(b) || { name: clean(b), unit: '' };
+    return norm(x.name) === norm(y.name) && (!x.unit || !y.unit || norm(unitForm(x.unit, 5)) === norm(unitForm(y.unit, 5)));
+  }
+  /** «вода» + «вода - 2 паки» → «вода - 3 паки» */
+  function addGoods(a, b) {
+    const x = splitGoods(a), y = splitGoods(b), n = (x ? x.qty : 1) + (y ? y.qty : 1);
+    return goodsDesc(x ? x.name : clean(a), n, (x && x.unit) || (y && y.unit) || '');
   }
 
   /* ---------- відвантаження ---------- */
-  function ship(s, ids, date) {
+  /** parts: {id: скільки їде} — для товару без номера з кількістю; решта лишається на складі */
+  function ship(s, ids, date, parts) {
     const ts = new Date().toISOString();
-    const ev = { id: uid('out'), kind: 'out', date: date || todayStr(), ts, count: 0 };
+    const ev = { id: uid('out'), kind: 'out', date: date || todayStr(), title: '', ts, count: 0 };
     for (const id of ids) {
       const it = s.items.find(x => x.id === id);
       if (!it || it.state !== 'stock') continue;
-      it.state = 'departed'; it.shipmentId = ev.id; it.updatedAt = ts;
+      const q = it.number == null ? qtyOf(it.desc) : null, k = parts ? parts[id] : null;
+      if (q && Number.isInteger(k) && k >= 1 && k < q) {
+        s.items.push(Object.assign({}, it, { id: uid('i'), desc: withQty(it.desc, k), desc0: undefined, state: 'departed', shipmentId: ev.id, arrivalId: null, splitOf: it.id, createdAt: ts, updatedAt: ts }));
+        if (!it.desc0) it.desc0 = it.desc;
+        it.desc = withQty(it.desc, q - k); it.updatedAt = ts;
+      } else { it.state = 'departed'; it.shipmentId = ev.id; it.updatedAt = ts; }
       ev.count++;
     }
     if (!ev.count) return { ok: false, err: 'Немає посилок для відвантаження' };
@@ -717,21 +818,34 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
   }
   function cancelShipment(s, ev) {
     const ts = new Date().toISOString();
-    for (const it of s.items) if (it.shipmentId === ev.id) { it.state = 'stock'; it.shipmentId = null; it.updatedAt = ts; }
+    const gone = new Set();
+    for (const it of s.items) {
+      if (it.shipmentId !== ev.id) continue;
+      // частина товару повертається до решти: «вода 5» + «вода 5» → знову «вода 10»
+      const par = it.splitOf ? s.items.find(x => x.id === it.splitOf && x.state === 'stock' && x.number == null) : null;
+      const a = par ? qtyOf(par.desc) : null, b = par ? qtyOf(it.desc) : null;
+      if (par && a && b) {
+        par.desc = withQty(par.desc, a + b); par.updatedAt = ts;
+        if (par.desc0 && norm(par.desc0) === norm(par.desc)) delete par.desc0;
+        gone.add(it.id);
+      } else { it.state = 'stock'; it.shipmentId = null; it.updatedAt = ts; }
+    }
+    s.items = s.items.filter(it => !gone.has(it.id));
     s.events = s.events.filter(e => e.id !== ev.id);
     return { ok: true };
   }
-  /** Виправити дату й маршрут прийому. Посилки з датою підвозу переходять на нову дату. */
+  /** Виправити дату й маршрут запису. У прийомі посилки з датою підвозу переходять на нову дату. */
   function editArrival(s, ev, date, title) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return { ok: false, err: 'Вкажіть дату' };
     const ts = new Date().toISOString(), old = ev.date;
-    if (date !== old) for (const it of s.items) if (it.arrivalId === ev.id && it.date === old) { it.date = date; it.updatedAt = ts; }
+    if (ev.kind === 'in' && date !== old) for (const it of s.items) if (it.arrivalId === ev.id && it.date === old) { it.date = date; it.updatedAt = ts; }
     ev.date = date; ev.title = clean(title);
     return { ok: true };
   }
   function deleteArrival(s, ev) {
-    if (s.items.some(it => it.arrivalId === ev.id && it.state === 'departed')) return { ok: false, err: 'Частина посилок уже поїхала — спершу скасуйте ту загрузку' };
-    s.items = s.items.filter(it => it.arrivalId !== ev.id);
+    const own = new Set(s.items.filter(it => it.arrivalId === ev.id).map(it => it.id));
+    if (s.items.some(it => (own.has(it.id) || own.has(it.splitOf)) && it.state === 'departed')) return { ok: false, err: 'Частина посилок уже поїхала — спершу скасуйте ту загрузку' };
+    s.items = s.items.filter(it => it.arrivalId !== ev.id && !own.has(it.splitOf));
     s.events = s.events.filter(e => e.id !== ev.id);
     return { ok: true };
   }
@@ -813,7 +927,7 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
   const Core = {
     uid, todayStr, fmtDay, fmtDate, norm, clean, cap, cmpStr, cmpItem,
     emptyState, migrate, index, findGroup, groupOrder, ensureGroup, findParcel, groupName, itemLabel,
-    mkDate, packId, missingNums, repeatedNums, fmtNums, parseArrival, planArrival, applyArrival, parcelLine, arrivalHead, formatArrival, arrivalBlocks, arrivalText, shipText,
+    mkDate, packId, missingNums, repeatedNums, fmtNums, parseArrival, planArrival, applyArrival, parcelLine, arrivalHead, formatArrival, arrivalBlocks, arrivalText, shipText, stockText, qtyOf, withQty, splitGoods, goodsDesc, sameGoods, addGoods, unitForm,
     ship, cancelShipment, editArrival, deleteArrival, editItem, deleteItem, renameGroup, deleteGroup,
     tokens, matchItem, exportData, validateImport
   };
@@ -863,9 +977,9 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
     undo: [],
     sheetCtx: null, sheetGen: 0,
     photos: [],
-    dd: { groups: [], rows: [], active: null, num: '', desc: {}, prob: false, last: null },
+    dd: { groups: [], rows: [], active: null, num: '', desc: {}, prob: false, last: null, goods: false, unit: '' },
     ui: {
-      q: '', sel: new Set(),
+      q: '', sel: new Set(), part: {}, restMode: 'nums',
       inMode: 'cards', inTitle: '', inText: '', inDate: today(), inShow: false, inProb: new Set(), inAllowDup: false, inDateSet: false
     },
     storageErr: false, swWaiting: null, persisted: null
@@ -985,7 +1099,7 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
   function activeTab() {
     if (TABS.includes(App.route.name)) return App.route.name;
     for (let k = App.stack.length - 1; k >= 0; k--) if (TABS.includes(App.stack[k].name)) return App.stack[k].name;
-    return App.route.name === 'ship' ? 'stock' : App.route.name === 'inrev' ? 'intake' : 'hist';
+    return App.route.name === 'ship' || App.route.name === 'rest' ? 'stock' : App.route.name === 'inrev' ? 'intake' : 'hist';
   }
 
   /* ================= рендер ================= */
@@ -996,6 +1110,7 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
       intake: { title: 'Підвоз', actions: [['go-prefs', 'gear', 'Налаштування']] },
       hist: { title: 'Історія', actions: [['go-prefs', 'gear', 'Налаштування']] },
       ship: { title: 'Список на загрузку', back: true, actions: [] },
+      rest: { title: 'Текст залишку', back: true, actions: [] },
       inrev: { title: 'Перевірка підвозу', back: true, actions: [] },
       event: { title: (KIND[(C.index(S()).events.get(App.route.p.id) || {}).kind] || { t: 'Запис' }).t, back: true, actions: [] },
       prefs: { title: 'Налаштування', back: true, actions: [] }
@@ -1045,6 +1160,7 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
   function pruneSel() {
     const ix = C.index(S());
     for (const id of [...App.ui.sel]) { const it = ix.items.get(id); if (!it || it.state !== 'stock') App.ui.sel.delete(id); }
+    for (const id of Object.keys(App.ui.part)) if (!App.ui.sel.has(id)) delete App.ui.part[id];
   }
   VIEWS.stock = function () {
     pruneSel();
@@ -1058,7 +1174,7 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
       return h;
     }
     const ngr = new Set(stock.map(it => it.groupId)).size;
-    h += '<div class="totals"><b>' + stock.length + '</b><span>' + plural(stock.length, 'посилка', 'посилки', 'посилок').replace(/^\d+ /, '') + ' на складі · ' + grp(ngr) + '</span></div>';
+    h += '<div class="totals"><b>' + stock.length + '</b><span>' + plural(stock.length, 'посилка', 'посилки', 'посилок').replace(/^\d+ /, '') + ' на складі · ' + grp(ngr) + '</span><button class="btn btn-sm" data-act="go-rest">' + ic('copy') + 'Залишок</button></div>';
     h += '<div class="search">' + ic('search') + '<input class="input" id="stock-q" type="search" enterkeyhint="search" autocomplete="off" placeholder="Манчестер, 3.11, дрон, 12…" value="' + esc(u.q) + '" data-in="stock-q"></div>';
     h += '<p class="hint">Натисніть посилки, що їдуть. Утримуйте — щоб змінити чи видалити.</p>';
     h += '<div id="stock-list">' + stockList() + '</div>';
@@ -1076,6 +1192,13 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
     const by = new Map();
     for (const it of list) { if (!by.has(it.groupId)) by.set(it.groupId, []); by.get(it.groupId).push(it); }
     const gids = C.groupOrder(S(), [...by.keys()]);
+    // номери за «група|дата»: усі, що приходили (для пропусків), і ті, що лежать (для повторів)
+    const allN = new Map(), stockN = new Map();
+    for (const it of S().items) {
+      const k = it.groupId + '|' + it.date;
+      if (!allN.has(k)) { allN.set(k, []); stockN.set(k, []); }
+      allN.get(k).push(it.number); if (it.state === 'stock') stockN.get(k).push(it.number);
+    }
     return gids.map(gid => {
       const its = by.get(gid).sort(C.cmpItem);
       const allSel = its.every(it => u.sel.has(it.id));
@@ -1086,8 +1209,8 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
       for (const [d, arr] of days) {
         const dSel = arr.every(it => u.sel.has(it.id));
         // повтори — серед того, що лежить на складі; пропуски — серед усього, що приходило з цією датою
-        const rep = new Set(C.repeatedNums(S().items.filter(it => it.state === 'stock' && it.groupId === gid && it.date === d).map(it => it.number)));
-        const miss = C.missingNums(S().items.filter(it => it.groupId === gid && it.date === d).map(it => it.number));
+        const rep = new Set(C.repeatedNums(stockN.get(gid + '|' + d) || []));
+        const miss = C.missingNums(allN.get(gid + '|' + d) || []);
         h += '<button class="dhead" data-act="sel-day" data-gid="' + gid + '" data-day="' + d + '"><span><b>' + C.fmtDay(d) + '</b> · ' + arr.length + ' шт</span><span class="pick">' + (dSel ? 'зняти' : 'вибрати всі') + '</span></button>';
         if (rep.size || miss.length) h += '<div class="dnote">' + (rep.size ? '<span class="bad">Повтор: ' + C.fmtNums([...rep]) + '</span>' : '') + (miss.length ? '<span>Немає: ' + C.fmtNums(miss) + '</span>' : '') + '</div>';
         h += '<div class="pgrid">' + arr.map(it => {
@@ -1105,14 +1228,31 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
     const ix = C.index(S());
     return [...App.ui.sel].map(id => ix.items.get(id)).filter(it => it && it.state === 'stock');
   }
+  /** Товари без номера з кількістю серед вибраних: їх можна відправити частково */
+  function partItems() { return selItems().filter(it => it.number == null && C.qtyOf(it.desc) >= 2); }
+  function partOf(it) { const q = C.qtyOf(it.desc), k = App.ui.part[it.id]; return Number.isInteger(k) && k >= 1 && k < q ? k : q; }
+  /** Вибране так, як воно поїде: з уже зменшеною кількістю */
+  function shipItems() {
+    return selItems().map(it => { if (it.number != null) return it; const q = C.qtyOf(it.desc), k = partOf(it); return q >= 2 && k < q ? Object.assign({}, it, { desc: C.withQty(it.desc, k) }) : it; });
+  }
+  function shipParts() { const o = {}; for (const it of partItems()) { const k = partOf(it); if (k < C.qtyOf(it.desc)) o[it.id] = k; } return o; }
+  const shipTextNow = () => C.shipText(S(), shipItems(), C.arrivalHead(today(), ''));
   VIEWS.ship = function () {
     pruneSel();
     const items = selItems();
     if (!items.length) { setTimeout(() => { if (App.route.name === 'ship') back(); }, 0); return ''; }
-    const text = C.shipText(S(), items);
-    const left = S().items.filter(it => it.state === 'stock').length - items.length;
+    const ix = C.index(S()), parts = partItems(), nPart = Object.keys(shipParts()).length;
+    const left = S().items.filter(it => it.state === 'stock').length - items.length + nPart;
     let h = '<div class="sec-title"><h2>Для начальника</h2><span class="label">' + pcs(items.length) + '</span></div>';
-    h += '<pre class="msgtext">' + esc(text) + '</pre>';
+    h += '<pre class="msgtext">' + esc(shipTextNow()) + '</pre>';
+    if (parts.length) {
+      h += '<section class="card"><h3>Їде не все?</h3><p>Зменште кількість — решта залишиться на складі.</p><div class="plist">' + parts.map(it => {
+        const q = C.qtyOf(it.desc), k = partOf(it);
+        return '<div class="prow"><span><b>' + esc(C.groupName(ix, it.groupId)) + '</b> · ' + esc(it.desc) + '</span><span class="stp">' +
+          '<button class="icon-btn" data-act="part" data-id="' + it.id + '" data-d="-1" aria-label="Менше"' + (k <= 1 ? ' disabled' : '') + '>−</button><b>' + k + '</b><small>з ' + q + '</small>' +
+          '<button class="icon-btn" data-act="part" data-id="' + it.id + '" data-d="1" aria-label="Більше"' + (k >= q ? ' disabled' : '') + '>+</button></span></div>';
+      }).join('') + '</div></section>';
+    }
     h += '<p class="hint" style="margin:0">Після списання на складі залишиться ' + pcs(left) + '. Помилку можна виправити в «Історії» → «Повернути на склад».</p>';
     h += '<div class="action-bar"><button class="btn" data-act="ship-copy" aria-label="Лише скопіювати">' + ic('copy') + '</button>' +
       '<button class="btn" data-act="ship-share" aria-label="Поділитися">' + ic('share') + '</button>' +
@@ -1124,7 +1264,8 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
   // Кожна позиція — картка з «+». Номер набирається звичайною клавіатурою, Enter — записано.
   // Вміст запам'ятовується для позиції, тож сім «паливо» поспіль — це сім номерів і сім Enter.
   const DEF_CONTENTS = ['вода', 'провізія', 'бк', 'батки', 'паливо', 'колібрі'];
-  function newDraft() { return { groups: [], rows: [], active: null, num: '', desc: {}, prob: false, last: null }; }
+  const UNIT_CHIPS = ['шт', 'паків', 'каністр', 'ящиків', 'мішків'];
+  function newDraft() { return { groups: [], rows: [], active: null, num: '', desc: {}, prob: false, last: null, goods: false, unit: '' }; }
   const D = () => App.dd;
   const gk = n => C.norm(n);
   const draftRows = g => D().rows.filter(r => gk(r.g) === gk(g));
@@ -1141,8 +1282,9 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
     const cnt = new Map(), name = new Map();
     const add = (t, w) => { const k = C.norm(t); if (!k || k.length > 22) return; cnt.set(k, (cnt.get(k) || 0) + w); if (!name.has(k)) name.set(k, C.clean(t)); };
     const grp = C.findGroup(S(), g);
-    for (const it of S().items) if (it.number != null) add(it.desc, grp && it.groupId === grp.id ? 3 : 1);
-    for (const r of D().rows) if (r.number != null) add(r.desc, gk(r.g) === gk(g) ? 3 : 1);
+    const goods = !!D().goods, nm = t => (C.splitGoods(t) || { name: t }).name;
+    for (const it of S().items) if ((it.number == null) === goods) add(goods ? nm(it.desc) : it.desc, grp && it.groupId === grp.id ? 3 : 1);
+    for (const r of D().rows) if ((r.number == null) === goods) add(goods ? nm(r.desc) : r.desc, gk(r.g) === gk(g) ? 3 : 1);
     DEF_CONTENTS.forEach((t, k) => add(t, 0.01 * (DEF_CONTENTS.length - k)));
     return [...cnt.keys()].sort((a, b) => cnt.get(b) - cnt.get(a)).slice(0, 8).map(k => name.get(k));
   }
@@ -1174,13 +1316,16 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
     }).join('') + '</div>';
     if (miss.length) h += '<div class="dnote"><span>Немає: ' + C.fmtNums(miss) + '</span></div>';
     if (open) {
-      const desc = d.desc[gk(g)] || '';
-      h += '<div class="entry"><input class="input enum" id="d-num" data-in="d-num" inputmode="numeric" pattern="[0-9]*" enterkeyhint="go" autocomplete="off" placeholder="№" value="' + esc(d.num) + '">' +
-        '<input class="input" id="d-desc" data-in="d-desc" enterkeyhint="go" autocomplete="off" autocapitalize="off" placeholder="що всередині" value="' + esc(desc) + '">' +
+      const desc = d.desc[gk(g) + (d.goods ? '|g' : '')] || '';
+      h += '<div class="seg">' + [[0, 'З номером'], [1, 'Без номера']].map(([k, t]) => '<button class="' + (!!d.goods === !!k ? 'on' : '') + '" data-act="d-goods" data-k="' + k + '">' + t + '</button>').join('') + '</div>';
+      h += '<div class="entry"><input class="input enum" id="d-num" data-in="d-num" inputmode="numeric" pattern="[0-9]*" enterkeyhint="go" autocomplete="off" placeholder="' + (d.goods ? 'к-сть' : '№') + '" value="' + esc(d.num) + '">' +
+        '<input class="input" id="d-desc" data-in="d-desc" enterkeyhint="go" autocomplete="off" autocapitalize="off" placeholder="' + (d.goods ? 'що це: вода, паливо…' : 'що всередині') + '" value="' + esc(desc) + '">' +
         '<button class="icon-btn eprob' + (d.prob ? ' on' : '') + '" data-act="d-prob" aria-label="Проблемна посилка">⚠</button></div>';
+      if (d.goods) h += '<div class="dchips">' + UNIT_CHIPS.map(t => '<button class="qchip sm unit' + (d.unit === t ? ' on' : '') + '" data-act="d-unit" data-u="' + t + '">' + t + '</button>').join('') + '</div>';
       h += '<div class="dchips">' + contentsFor(g).map(t => '<button class="qchip sm' + (C.norm(t) === C.norm(desc) ? ' on' : '') + '" data-act="d-desc" data-desc="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>';
       h += '<button class="btn btn-primary btn-block" data-act="d-add">Записати</button>';
-      h += '<p class="hint" style="margin:0">Номер → Enter: записано з тим самим вмістом. Інший вміст — набрати номер і натиснути кнопку вмісту. Без номера — товар, напр. «Бк - 4 цинка».</p>';
+      h += '<p class="hint" style="margin:0">' + (d.goods ? 'Те, що без ярлика з номером: скільки → що це → одиниця. Вийде «вода - 10 паків». Той самий товар ще раз — кількість додасться.'
+        : 'Номер → Enter: записано з тим самим вмістом. Інший вміст — набрати номер і натиснути кнопку вмісту.') + '</p>';
     }
     return h + '</section>';
   }
@@ -1293,7 +1438,7 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
   };
   function eventText(ev) {
     if (ev.kind === 'in') return C.arrivalText(S(), ev.id);
-    return C.shipText(S(), S().items.filter(it => it.shipmentId === ev.id));
+    return C.shipText(S(), S().items.filter(it => it.shipmentId === ev.id), C.arrivalHead(ev.date, ev.title));
   }
   VIEWS.event = function () {
     const s = S(), ix = C.index(s), ev = ix.events.get(App.route.p.id);
@@ -1306,7 +1451,7 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
     h += '<div class="sec-title"><h2>Текст для начальника</h2></div>';
     h += '<pre class="msgtext">' + esc(eventText(ev)) + '</pre>';
     h += '<div class="row-btns"><button class="btn btn-primary" data-act="ev-copy">' + ic('copy') + 'Скопіювати</button><button class="btn" data-act="ev-share">' + ic('share') + 'Поділитися</button></div>';
-    if (ev.kind === 'in') h += '<button class="btn btn-ghost btn-sm" style="align-self:flex-start" data-act="ev-edit">Змінити дату чи маршрут</button>';
+    h += '<button class="btn btn-ghost btn-sm" style="align-self:flex-start" data-act="ev-edit">Змінити дату чи маршрут</button>';
     if (ev.kind === 'in') {
       const prob = its.filter(it => it.problem).sort(C.cmpItem);
       h += '<section class="card"><h3>Фото проблемних посилок</h3>' +
@@ -1516,8 +1661,25 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
     const ids = S().items.filter(it => it.state === 'stock' && it.groupId === el.dataset.gid && it.date === el.dataset.day && C.matchItem(ix, it, toks)).map(it => it.id);
     setSel(ids, !ids.every(id => App.ui.sel.has(id)));
   };
-  A['sel-clear'] = () => { App.ui.sel.clear(); Store.saveUi(); render(); };
+  A['sel-clear'] = () => { App.ui.sel.clear(); App.ui.part = {}; Store.saveUi(); render(); };
   A['go-ship'] = () => go('ship', {}, { push: true });
+  // текст залишку / ревізії
+  const restTitle = () => { const st = S().settings, rev = App.ui.restMode === 'desc'; return (rev ? st.revTitle : st.restTitle) || (rev ? 'Ревізія' : 'Залишок на складі'); };
+  const restText = () => C.stockText(S(), App.ui.restMode, restTitle());
+  A['go-rest'] = () => go('rest', {}, { push: true });
+  A['rest-mode'] = el => { App.ui.restMode = el.dataset.k; render(); };
+  A['rest-copy'] = () => copyText(restText(), 'Текст скопійовано');
+  A['rest-share'] = () => shareText(restText());
+  VIEWS.rest = function () {
+    const u = App.ui, n = S().items.filter(it => it.state === 'stock').length;
+    if (!n) return '<div class="empty">Склад порожній.</div>';
+    let h = '<div class="seg">' + [['nums', 'Коротко'], ['desc', 'За вмістом (ревізія)']].map(([k, t]) => '<button class="' + (u.restMode === k ? 'on' : '') + '" data-act="rest-mode" data-k="' + k + '">' + t + '</button>').join('') + '</div>';
+    h += '<label class="field"><span>Заголовок</span><input class="input" id="rest-title" data-in="rest-title" autocomplete="off" value="' + esc(restTitle()) + '"></label>';
+    h += '<pre class="msgtext" id="rest-text">' + esc(restText()) + '</pre>';
+    h += '<p class="hint" style="margin:0">Усе, що зараз лежить на складі: ' + pcs(n) + '. Заголовок запам’ятається.</p>';
+    h += '<div class="action-bar"><button class="btn" data-act="rest-share" aria-label="Поділитися">' + ic('share') + '</button><button class="btn btn-primary" style="flex:1" data-act="rest-copy">' + ic('copy') + 'Скопіювати</button></div>';
+    return h;
+  };
   A['it-delete'] = el => {
     const id = el.dataset.id, ix = C.index(S()), it = ix.items.get(id);
     confirmSheet({ title: 'Видалити ' + C.itemLabel(ix, it) + '?', text: 'Посилка зникне зі складу та з тексту прийому.', ok: 'Видалити', danger: true,
@@ -1525,15 +1687,21 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
   };
 
   // загрузка
-  A['ship-copy'] = () => copyText(C.shipText(S(), selItems()), 'Список скопійовано');
-  A['ship-share'] = () => shareText(C.shipText(S(), selItems()));
+  A['ship-copy'] = () => copyText(shipTextNow(), 'Список скопійовано');
+  A['ship-share'] = () => shareText(shipTextNow());
+  A['part'] = el => {
+    const it = C.index(S()).items.get(el.dataset.id); if (!it) return;
+    const q = C.qtyOf(it.desc), k = Math.min(q, Math.max(1, partOf(it) + (+el.dataset.d)));
+    if (k >= q) delete App.ui.part[it.id]; else App.ui.part[it.id] = k;
+    render();
+  };
   A['ship-go'] = () => {
     const items = selItems(); if (!items.length) return;
-    copyText(C.shipText(S(), items), false);
-    const ids = items.map(it => it.id);
-    const r = op('Загрузка: ' + pcs(ids.length), st => C.ship(st, ids, today()), { msg: res => 'Списано ' + pcs(res.event.count) + ' · список скопійовано' });
+    copyText(shipTextNow(), false);
+    const ids = items.map(it => it.id), parts = shipParts();
+    const r = op('Загрузка: ' + pcs(ids.length), st => C.ship(st, ids, today(), parts), { msg: res => 'Списано ' + pcs(res.event.count) + ' · список скопійовано' });
     if (!r || r.ok === false) return;
-    App.ui.sel.clear(); Store.saveUi();
+    App.ui.sel.clear(); App.ui.part = {}; Store.saveUi();
     App.stack = [{ name: 'stock', p: {} }]; App.route = { name: 'event', p: { id: r.event.id } };
     render(); window.scrollTo(0, 0);
   };
@@ -1544,21 +1712,32 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
   function dOpen(g) {
     const d = D();
     if (!d.groups.some(x => gk(x) === gk(g))) d.groups.push(g);
-    d.active = d.groups.find(x => gk(x) === gk(g)); d.num = ''; d.prob = false;
+    d.active = d.groups.find(x => gk(x) === gk(g)); d.num = ''; d.prob = false; d.goods = false;
     dRender(); focusNum();
   }
   function dAdd(descOverride) {
     const d = D(), g = d.active; if (!g) return;
     const ni = $('#d-num'), di = $('#d-desc');
     const raw = (ni ? ni.value : d.num).trim();
-    const desc = C.clean(descOverride != null ? descOverride : (di ? di.value : d.desc[gk(g)] || ''));
+    const dkey = gk(g) + (d.goods ? '|g' : '');
+    let desc = C.clean(descOverride != null ? descOverride : (di ? di.value : d.desc[dkey] || ''));
+    if (raw && !/^\d{1,5}$/.test(raw)) { toast((d.goods ? 'Кількість' : 'Номер') + ' — лише цифри', { kind: 'err' }); focusNum(); return; }
+    if (d.goods && !desc) { toast('Напишіть, що це', { kind: 'err' }); const e = $('#d-desc'); if (e) e.focus(); return; }
     if (!raw && !desc) { toast('Наберіть номер або напишіть, що це', { kind: 'err' }); focusNum(); return; }
-    if (raw && !/^\d{1,5}$/.test(raw)) { toast('Номер — лише цифри', { kind: 'err' }); focusNum(); return; }
-    const r = { id: C.uid('d'), g, number: raw ? +raw : null, desc, problem: d.prob };
     if (!App.ui.inDateSet) { App.ui.inDate = inDay(); App.ui.inDateSet = true; }
-    d.rows.push(r); d.last = r.id; d.num = ''; d.prob = false;
+    const isGoods = d.goods || !raw;
+    if (d.goods) desc = C.goodsDesc(desc, raw ? +raw : (d.unit ? 1 : 0), d.unit);
+    let r = null;
+    if (isGoods) {
+      // той самий товар удруге — це не новий рядок, а більша кількість: «вода» + «вода» → «вода - 2»
+      const ex = d.rows.find(x => gk(x.g) === gk(g) && x.number == null && C.sameGoods(x.desc, desc));
+      if (ex) { ex.desc = C.addGoods(ex.desc, desc); ex.problem = ex.problem || d.prob; r = ex; }
+    }
+    if (!r) { r = { id: C.uid('d'), g, number: isGoods ? null : +raw, desc, problem: d.prob }; d.rows.push(r); }
+    d.last = r.id; d.num = ''; d.prob = false;
     // для посилок вміст лишається (наступна часто така сама); для товару без номера — очищаємо
-    d.desc[gk(g)] = r.number != null ? desc : (d.desc[gk(g)] === desc ? '' : d.desc[gk(g)] || '');
+    if (d.goods) { d.desc[dkey] = ''; d.unit = ''; }
+    else d.desc[dkey] = r.number != null ? desc : (d.desc[dkey] === desc ? '' : d.desc[dkey] || '');
     const f = rowFlags(r);
     if (f.length) { toast(g + ' №' + r.number + ': ' + f.join(', '), { kind: 'err' }); if (navigator.vibrate) navigator.vibrate([60, 40, 60]); }
     else if (navigator.vibrate) navigator.vibrate(20);
@@ -1589,9 +1768,12 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
   A['d-prob'] = () => { const d = D(), ni = $('#d-num'); if (ni) d.num = ni.value; d.prob = !d.prob; dRender(); focusNum(); };
   A['d-desc'] = el => {
     const d = D(), ni = $('#d-num');
-    if (ni && ni.value.trim()) { dAdd(el.dataset.desc); return; }
-    d.desc[gk(d.active)] = el.dataset.desc; dRender(); focusNum();
+    if (ni) d.num = ni.value;
+    if (!d.goods && ni && ni.value.trim()) { dAdd(el.dataset.desc); return; }
+    d.desc[gk(d.active) + (d.goods ? '|g' : '')] = el.dataset.desc; dRender(); focusNum();
   };
+  A['d-goods'] = el => { const d = D(); d.goods = el.dataset.k === '1'; d.num = ''; d.unit = ''; dRender(); focusNum(); };
+  A['d-unit'] = el => { const d = D(), ni = $('#d-num'), di = $('#d-desc'); if (ni) d.num = ni.value; if (di && d.active) d.desc[gk(d.active) + '|g'] = di.value; d.unit = d.unit === el.dataset.u ? '' : el.dataset.u; dRender(); focusNum(); };
   A['d-add'] = () => dAdd();
   A['d-row'] = el => {
     const d = D(), r = d.rows.find(x => x.id === el.dataset.id); if (!r) return;
@@ -1649,15 +1831,16 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
   A['ph-send'] = () => { const ev = curEvent(); if (ev) sharePhotos(eventText(ev)); };
   A['ev-edit'] = () => {
     const ev = curEvent(); if (!ev) return;
-    const titles = [...new Set(S().events.filter(e => e.kind === 'in' && e.title).sort((a, b) => (b.ts || '').localeCompare(a.ts || '')).map(e => e.title))].slice(0, 4);
-    sheet('<h3>Прийом</h3><label class="field"><span>Дата підвозу</span><input class="input" type="date" id="ee-date" value="' + esc(ev.date) + '"></label>' +
-      '<label class="field"><span>Маршрут</span><input class="input" id="ee-title" autocomplete="off" placeholder="РЗ -> Федекс" value="' + esc(ev.title) + '"></label>' +
+    const isIn = ev.kind === 'in';
+    const titles = [...new Set(S().events.filter(e => e.kind === ev.kind && e.title).sort((a, b) => (b.ts || '').localeCompare(a.ts || '')).map(e => e.title))].slice(0, 4);
+    sheet('<h3>' + KIND[ev.kind].t + '</h3><label class="field"><span>' + (isIn ? 'Дата підвозу' : 'Дата загрузки') + '</span><input class="input" type="date" id="ee-date" value="' + esc(ev.date) + '"></label>' +
+      '<label class="field"><span>Маршрут</span><input class="input" id="ee-title" autocomplete="off" placeholder="' + (isIn ? 'РЗ -> Федекс' : 'Федекс -> РЗ') + '" value="' + esc(ev.title || '') + '"></label>' +
       (titles.length ? '<div class="qchips">' + titles.map(t => '<button class="qchip sm" data-act="ee-pick" data-t="' + esc(t) + '">' + esc(t) + '</button>').join('') + '</div>' : '') +
-      '<p class="small muted" style="margin:0">Посилки цього прийому з датою ' + esc(C.fmtDay(ev.date)) + ' отримають нову дату.</p>' +
+      (isIn ? '<p class="small muted" style="margin:0">Посилки цього прийому з датою ' + esc(C.fmtDay(ev.date)) + ' отримають нову дату.</p>' : '') +
       '<div class="row-btns"><button class="btn" data-act="sheet-close">Скасувати</button><button class="btn btn-primary" data-act="sheet-ok">Зберегти</button></div>', {
       onOk: () => {
         const date = $('#ee-date').value, title = $('#ee-title').value;
-        setTimeout(() => op('Прийом змінено', st => C.editArrival(st, st.events.find(e => e.id === ev.id), date, title)), 0);
+        setTimeout(() => op('Запис змінено', st => C.editArrival(st, st.events.find(e => e.id === ev.id), date, title)), 0);
       }
     });
   };
@@ -1711,10 +1894,11 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
         $('#view').classList.remove('has-bar'); document.body.classList.remove('with-bar');
       }
     },
+    'rest-title': v => { S().settings[App.ui.restMode === 'desc' ? 'revTitle' : 'restTitle'] = v; persist(); renderPart('#rest-text', esc(restText())); },
     'in-date': v => { if (v) { App.ui.inDate = v; App.ui.inDateSet = true; Store.saveUi(); render(); } },
     'in-title': v => { App.ui.inTitle = v; Store.saveUi(); },
     'd-num': v => { D().num = v; Store.saveUi(); },
-    'd-desc': v => { const d = D(); if (d.active) d.desc[gk(d.active)] = v; Store.saveUi(); }
+    'd-desc': v => { const d = D(); if (d.active) d.desc[gk(d.active) + (d.goods ? '|g' : '')] = v; Store.saveUi(); }
   };
 
   // довге натискання на посилку відкриває її картку
@@ -1809,7 +1993,7 @@ body.with-bar .toast { bottom: calc(var(--tab-h) + var(--sab) + 84px); }
       if (ui && ui.v === 2) {
         const busy = (ui.dd && ui.dd.rows && ui.dd.rows.length) || (ui.inText || '').trim();
         Object.assign(App.ui, { inText: ui.inText || '', inDate: ui.inDate || today(), inDateSet: !!busy && (ui.inDateSet != null ? !!ui.inDateSet : true), inTitle: ui.inTitle || '', inMode: ui.inMode === 'text' ? 'text' : 'cards', sel: new Set(ui.sel || []) });
-        if (ui.dd && Array.isArray(ui.dd.rows)) App.dd = Object.assign({ groups: [], rows: [], active: null, num: '', desc: {}, prob: false, last: null }, ui.dd);
+        if (ui.dd && Array.isArray(ui.dd.rows)) App.dd = Object.assign(newDraft(), ui.dd);
       }
     } catch (e) { /* */ }
     if (navigator.storage && navigator.storage.persisted) navigator.storage.persisted().then(v => { App.persisted = v; }).catch(() => { /* */ });
